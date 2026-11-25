@@ -1,0 +1,30 @@
+[tool]
+id          = "video_info"
+name        = "Thông tin video"
+version     = "0.1.0"
+sdk         = ">=0.1,<0.2"
+entry       = "tool:VideoInfoTool"
+summary     = "Xem nhanh thông tin cơ bản của video bằng lời dễ hiểu: thời lượng, kích thước, chất lượng, dung lượng, có tiếng hay không."
+tags        = ["info", "video", "basic"]
+owners      = ["mediatool-core"]
+license     = "MIT"
+status      = "beta"
+
+[runtime]
+profile     = "base"
+ram_mb      = 100
+gpu         = "none"
+heavy       = false
+timeout_s   = 60
+
+[dependencies]
+binaries    = ["ffprobe"]
+
+[mcp]
+expose      = true
+hint        = "Dùng khi người dùng hỏi video dài bao lâu, nét cỡ nào, nặng bao nhiêu, có tiếng không."
+
+[[examples]]
+title       = "Xem thông tin video mẫu"
+inputs      = { video = "samples/sample_3s.mp4" }
+params      = {}

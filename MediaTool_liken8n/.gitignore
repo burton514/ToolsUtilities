@@ -15,3 +15,6 @@ __pycache__/
 
 # Dữ liệu chạy local
 data/
+
+# Video thử của người dùng (có thể có bản quyền) — không commit
+test_media/
