@@ -65,8 +65,8 @@ await ws.tools.run("media_probe", { inputs: { /* asset */ }, params: {} });
 ## 4. Tích hợp và nối tool
 
 <!-- AUTO:chain:start -->
-- **Tool nối được vào trước (cấp input):** `video_demux`
-- **Tool nối được ra sau (nhận output):** _chưa có_
+- **Tool nối được vào trước (cấp input):** `compose_render`, `video_demux`
+- **Tool nối được ra sau (nhận output):** `compose_render`
 <!-- AUTO:chain:end -->
 
 **Lưu ý khi tích hợp:**

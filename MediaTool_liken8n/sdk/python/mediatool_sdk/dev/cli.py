@@ -146,7 +146,8 @@ def validate_tool(tool_dir: Path) -> list[tuple[bool, str]]:
             ok(s.stat().st_size <= MAX_SAMPLE_BYTES, f"sample {s.name} ≤ 2 MB")
     for ex in m.get("examples", []):
         for k, v in (ex.get("inputs") or {}).items():
-            ok((tool_dir / str(v)).exists(), f"example '{ex.get('title')}': file input '{v}' tồn tại")
+            for item in (v if isinstance(v, list) else [v]):
+                ok((tool_dir / str(item)).exists(), f"example '{ex.get('title')}': file input '{item}' tồn tại")
 
     readme = tool_dir / "README.md"
     if ok(readme.is_file(), "có README.md"):

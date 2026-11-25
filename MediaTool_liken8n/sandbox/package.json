@@ -13,6 +13,8 @@
     "@mediatool/miniapp-sdk": "0.1.0",
     "@mediatool/ui": "0.1.0",
     "@mediatool/workspace": "0.1.0",
+    "@mediatool/editor": "0.1.0",
+    "@xyflow/react": "^12.12.1",
     "marked": "^14.1.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

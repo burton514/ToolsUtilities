@@ -1,0 +1,15 @@
+[package]
+name = "mediatool-render"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "CLI engine native: render khung (JPEG) hoặc xuất video từ composition JSON"
+
+[[bin]]
+name = "mediatool-render"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+serde_json.workspace = true
+mediatool-engine.workspace = true

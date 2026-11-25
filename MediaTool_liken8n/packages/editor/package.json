@@ -1,0 +1,15 @@
+{
+  "name": "@mediatool/editor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "@mediatool/api-client": "0.1.0",
+    "@mediatool/ui": "0.1.0"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1"
+  }
+}

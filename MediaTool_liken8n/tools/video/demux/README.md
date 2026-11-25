@@ -83,8 +83,8 @@ await ws.tools.run("video_demux", { inputs: { /* asset */ }, params: {"audio_for
 ## 4. Tích hợp và nối tool
 
 <!-- AUTO:chain:start -->
-- **Tool nối được vào trước (cấp input):** _chưa có_
-- **Tool nối được ra sau (nhận output):** `media_probe`
+- **Tool nối được vào trước (cấp input):** `compose_render`
+- **Tool nối được ra sau (nhận output):** `compose_render`, `media_probe`
 <!-- AUTO:chain:end -->
 
 **Chuỗi hay dùng:**

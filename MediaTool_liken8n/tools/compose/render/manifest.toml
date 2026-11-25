@@ -1,0 +1,30 @@
+[tool]
+id          = "compose_render"
+name        = "Xuất bản dựng thành video"
+version     = "0.1.0"
+sdk         = ">=0.1,<0.2"
+entry       = "tool:ComposeRenderTool"
+summary     = "Render composition (nhiều lớp video/ảnh/chữ nghệ thuật/hình, keyframe, animation) thành video MP4 bằng engine native (Skia + FFmpeg)."
+tags        = ["render", "export", "composition", "motion"]
+owners      = ["mediatool-core"]
+license     = "MIT"
+status      = "beta"
+
+[runtime]
+profile     = "base"
+ram_mb      = 900
+gpu         = "none"
+heavy       = true
+timeout_s   = 3600
+
+[dependencies]
+binaries    = ["mediatool-render", "ffmpeg"]
+
+[mcp]
+expose      = true
+hint        = "Bước cuối của mọi bản dựng: nhận composition (format composition) và các file nguồn được tham chiếu trong đó, trả video MP4."
+
+[[examples]]
+title       = "Xuất bản dựng mẫu (xem thử)"
+inputs      = { composition = "samples/demo.json", media = ["samples/sample_3s.mp4"] }
+params      = { quality = "draft" }

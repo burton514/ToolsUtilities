@@ -6,8 +6,20 @@ import { MediaToolClient, type Job, type ToolDetail, type ToolSummary, type Mini
 import type { MiniAppDefinition } from "@mediatool/miniapp-sdk";
 import { Workspace } from "@mediatool/workspace";
 import { localMiniApps, type LocalMiniApp } from "./miniapps";
+import { TestBench } from "./TestBench";
+import { ChainEditor } from "./ChainEditor";
+import { Editor } from "@mediatool/editor";
 
-type Tab = "tools" | "miniapps" | "jobs";
+type Tab = "editor" | "tools" | "bench" | "chain" | "miniapps" | "jobs";
+
+const TAB_LABEL: Record<Tab, string> = {
+  editor: "Editor",
+  tools: "Tools",
+  bench: "Kiểm thử",
+  chain: "Chuỗi tool",
+  miniapps: "Mini apps",
+  jobs: "Jobs",
+};
 
 const client = new MediaToolClient({ baseUrl: "" }); // Vite proxy /v1 → core
 
@@ -171,9 +183,9 @@ export function App() {
     <div className="sb-root">
       <header className="sb-top">
         <b>MediaTool Sandbox</b>
-        {(["tools", "miniapps", "jobs"] as Tab[]).map((t) => (
+        {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
           <button key={t} className={`sb-tab ${tab === t ? "on" : ""}`} onClick={() => setTab(t)}>
-            {t === "tools" ? "Tools" : t === "miniapps" ? "Mini apps" : "Jobs"}
+            {TAB_LABEL[t]}
           </button>
         ))}
         <span className="sb-grow" />
@@ -193,6 +205,9 @@ export function App() {
           }} />
         )}
         {tab === "jobs" && <JobsTab />}
+        {tab === "bench" && <TestBench client={client} />}
+        {tab === "editor" && <Editor client={client} />}
+        {tab === "chain" && <ChainEditor client={client} />}
       </div>
     </div>
   );

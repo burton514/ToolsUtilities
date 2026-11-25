@@ -1,5 +1,7 @@
 //! HTTP API /v1. Mọi client (desktop, web, mobile, sandbox, MCP) chỉ đi qua đây.
 
+mod preview;
+
 use axum::{
     extract::{DefaultBodyLimit, Multipart, Path as AxPath, Query, Request, State},
     http::{header, HeaderValue, StatusCode},
@@ -86,6 +88,7 @@ pub struct AppState {
     jobs: Arc<JobManager>,
     cfg: Arc<ServerConfig>,
     reg_cfg: Arc<RegistryConfig>,
+    preview: preview::PreviewService,
 }
 
 /// Khởi động toàn bộ core và phục vụ HTTP cho tới khi tiến trình dừng.
@@ -115,7 +118,7 @@ pub async fn build_state(cfg: ServerConfig) -> anyhow::Result<AppState> {
         registry.clone(),
         JobsConfig { python: cfg.python.clone(), ram_budget_mb: cfg.ram_budget_mb, cancel_grace: Duration::from_secs(5) },
     );
-    Ok(AppState { store, registry, jobs, cfg: Arc::new(cfg), reg_cfg: Arc::new(reg_cfg) })
+    Ok(AppState { store, registry, jobs, cfg: Arc::new(cfg), reg_cfg: Arc::new(reg_cfg), preview: preview::PreviewService::start() })
 }
 
 pub fn router(state: AppState) -> Router {
@@ -131,10 +134,13 @@ pub fn router(state: AppState) -> Router {
         .route("/assets/register", post(register_local))
         .route("/assets/:id", get(get_asset))
         .route("/assets/:id/content", get(asset_content))
+        .route("/assets/:id/filmstrip", get(asset_filmstrip))
+        .route("/assets/:id/peaks", get(asset_peaks))
         .route("/jobs", get(list_jobs))
         .route("/jobs/:id", get(get_job))
         .route("/jobs/:id/events", get(job_events))
         .route("/jobs/:id/cancel", post(cancel_job))
+        .route("/preview/frame", post(preview_frame))
         .route("/system", get(system))
         .route("/registry/reload", post(reload_registry))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth));
@@ -287,7 +293,7 @@ async fn run_example(
     AxPath((id, index)): AxPath<(String, usize)>,
     body: Option<Json<SubmitBody>>,
 ) -> ApiResult<(StatusCode, Json<Value>)> {
-    let (dir, example) = {
+    let (dir, example, input_formats) = {
         let reg = s.registry.read().unwrap();
         let e = reg.tool(&id).ok_or_else(|| ApiError::not_found(&format!("tool '{id}'")))?;
         let ex = e
@@ -295,11 +301,17 @@ async fn run_example(
             .as_ref()
             .and_then(|m| m.examples.get(index.wrapping_sub(1)).cloned())
             .ok_or_else(|| ApiError::not_found(&format!("ví dụ số {index}")))?;
-        (e.dir.clone(), ex)
+        let formats: HashMap<String, String> = e
+            .describe
+            .as_ref()
+            .map(|d| d.inputs.iter().filter_map(|f| Some((f.name.clone(), f.format.clone()?))).collect())
+            .unwrap_or_default();
+        (e.dir.clone(), ex, formats)
     };
     let tool_dir = dir.canonicalize().map_err(|e| anyhow::anyhow!(e))?;
     let mut inputs = Map::new();
     for (name, v) in &example.inputs {
+        let declared = input_formats.get(name).cloned();
         let register = |rel: &str| -> ApiResult<Value> {
             let p = tool_dir
                 .join(rel)
@@ -308,8 +320,14 @@ async fn run_example(
             if !p.starts_with(&tool_dir) {
                 return Err(ApiError::new(StatusCode::FORBIDDEN, "FORBIDDEN", "File mẫu phải nằm trong thư mục tool"));
             }
-            let fmt = guess_format(&p.to_string_lossy());
-            let a = s.store.insert_asset(fmt, &p, None, json!({"sample": true}))?;
+            let mut fmt = guess_format(&p.to_string_lossy()).to_string();
+            // file .json của ví dụ mang đúng loại mà input khai báo (composition, timed_lyrics…)
+            if fmt == "json" {
+                if let Some(d) = declared.as_deref().filter(|d| mediatool_registry::format_accepts("json", d)) {
+                    fmt = d.to_string();
+                }
+            }
+            let a = s.store.insert_asset(&fmt, &p, None, json!({"sample": true}))?;
             Ok(Value::String(a.id))
         };
         let value = match v {
@@ -442,6 +460,61 @@ async fn asset_content(
     Ok(res)
 }
 
+/// Dải ảnh thu nhỏ cho timeline (engine native: FFmpeg decode + Skia ghép), cache trong data/cache.
+async fn asset_filmstrip(
+    State(s): State<AppState>,
+    AxPath(id): AxPath<String>,
+    Query(q): Query<HashMap<String, String>>,
+) -> ApiResult<Response> {
+    let a = s.store.get_asset(&id)?.ok_or_else(|| ApiError::not_found(&format!("asset '{id}'")))?;
+    if a.format != "video" {
+        return Err(ApiError::new(StatusCode::BAD_REQUEST, "NOT_VIDEO", "Chỉ video mới có filmstrip"));
+    }
+    let count: u32 = q.get("count").and_then(|v| v.parse().ok()).unwrap_or(10).clamp(1, 60);
+    let height: u32 = q.get("height").and_then(|v| v.parse().ok()).unwrap_or(64).clamp(16, 360);
+    let cache = s.store.data_dir().join("cache").join(format!("{id}_film_{count}_{height}.jpg"));
+    let bytes = match tokio::fs::read(&cache).await {
+        Ok(b) => b,
+        Err(_) => {
+            let path = a.path.to_string_lossy().into_owned();
+            let b = tokio::task::spawn_blocking(move || mediatool_engine::media::filmstrip(&path, count, height))
+                .await
+                .map_err(|e| anyhow::anyhow!(e))?
+                .map_err(|e| ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "FILMSTRIP_FAILED", format!("{e:#}")))?;
+            let _ = tokio::fs::create_dir_all(cache.parent().unwrap()).await;
+            let _ = tokio::fs::write(&cache, &b).await;
+            b
+        }
+    };
+    Ok(([(header::CONTENT_TYPE, "image/jpeg"), (header::CACHE_CONTROL, "max-age=86400")], bytes).into_response())
+}
+
+/// Đỉnh sóng âm (0..1) cho timeline, cache trong data/cache.
+async fn asset_peaks(
+    State(s): State<AppState>,
+    AxPath(id): AxPath<String>,
+    Query(q): Query<HashMap<String, String>>,
+) -> ApiResult<Json<Value>> {
+    let a = s.store.get_asset(&id)?.ok_or_else(|| ApiError::not_found(&format!("asset '{id}'")))?;
+    let buckets: usize = q.get("buckets").and_then(|v| v.parse().ok()).unwrap_or(400).clamp(8, 8000);
+    let cache = s.store.data_dir().join("cache").join(format!("{id}_peaks_{buckets}.json"));
+    if let Ok(text) = tokio::fs::read_to_string(&cache).await {
+        if let Ok(v) = serde_json::from_str::<Value>(&text) {
+            return Ok(Json(v));
+        }
+    }
+    let path = a.path.to_string_lossy().into_owned();
+    let ffmpeg = std::env::var("MEDIATOOL_FFMPEG").unwrap_or_else(|_| "ffmpeg".into());
+    let peaks = tokio::task::spawn_blocking(move || mediatool_engine::media::peaks(&ffmpeg, &path, buckets))
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?
+        .map_err(|e| ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "PEAKS_FAILED", format!("{e:#}")))?;
+    let v = json!({ "buckets": buckets, "peaks": peaks });
+    let _ = tokio::fs::create_dir_all(cache.parent().unwrap()).await;
+    let _ = tokio::fs::write(&cache, v.to_string()).await;
+    Ok(Json(v))
+}
+
 fn percent_encode(s: &str) -> String {
     s.bytes()
         .map(|b| match b {
@@ -488,6 +561,39 @@ async fn job_events(
 
 async fn cancel_job(State(s): State<AppState>, AxPath(id): AxPath<String>) -> Json<Value> {
     Json(json!({"cancelled": s.jobs.cancel(&id)}))
+}
+
+// ------------------------------------------------------------------ preview (engine native)
+
+#[derive(Deserialize)]
+struct PreviewBody {
+    composition: Value,
+    #[serde(default)]
+    time: f64,
+    #[serde(default = "default_preview_width")]
+    width: u32,
+}
+
+fn default_preview_width() -> u32 {
+    960
+}
+
+async fn preview_frame(State(s): State<AppState>, Json(b): Json<PreviewBody>) -> ApiResult<Json<Value>> {
+    let mut comp: mediatool_engine::Composition = serde_json::from_value(b.composition)
+        .map_err(|e| ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "BAD_COMPOSITION", e.to_string()))?;
+    let allow_local = s.cfg.allow_local_paths;
+    comp.resolve_sources(|src| match src.strip_prefix("asset:") {
+        Some(id) => s.store.get_asset(id).ok().flatten().map(|a| a.path.to_string_lossy().into_owned()),
+        None if allow_local => Some(src.to_string()),
+        None => None,
+    })
+    .map_err(|e| ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "BAD_SOURCE", e))?;
+    let frame = s
+        .preview
+        .render(comp, b.time.max(0.0), b.width.clamp(64, 3840))
+        .await
+        .map_err(|e| ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "RENDER_FAILED", e))?;
+    Ok(Json(frame))
 }
 
 // ------------------------------------------------------------------ system

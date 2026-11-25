@@ -10,7 +10,7 @@
 4. **Không có file dùng chung nào mà contributor phải sửa.** Không có catalog trung tâm, không có `switch/case` trong sandbox. Thêm tool là thêm một thư mục, thêm mini app cũng là thêm một thư mục.
 5. **Đầu vào và đầu ra đều có kiểu ngữ nghĩa** (`format`: `audio`, `video`, `timed_lyrics`…). Output của tool A nối được vào input của tool B khi trùng `format`. AI và workflow dựa vào điều này để tự nối tool.
 6. **Tool không bao giờ sửa file gốc.** Tool chỉ tạo file mới.
-7. **Không tự dựng phần xử lý nặng.** Render, encode, tách nhạc, nhận dạng giọng… dùng engine native đã được kiểm chứng (FFmpeg, MLT, libass, Skia, Demucs, faster-whisper…). Tool chỉ là lớp vỏ mỏng. Xem [ENGINES.md](ENGINES.md).
+7. **Không tự dựng phần xử lý nặng.** Render, encode, tách nhạc, nhận dạng giọng… dùng engine native đã được kiểm chứng (FFmpeg, Skia, libass, Demucs, faster-whisper…). Tool chỉ là lớp vỏ mỏng. Xem [ENGINES.md](ENGINES.md).
 8. **Hợp đồng chặt ở ranh giới.** Params được validate theo schema trước khi tới tool. Tool không phải tự parse JSON và không nhận tên tham số thay thế (alias).
 
 ## 1. Mục tiêu
@@ -79,6 +79,8 @@ MediaTool/
 │   ├── crates/jobs              # scheduler theo ngân sách RAM, quản lý subprocess
 │   ├── crates/storage           # assets + lineage (SQLite), StorageBackend
 │   ├── crates/models            # tải/cache model AI, kiểm tra sha256
+│   ├── crates/engine            # engine render native: Composition → khung (Skia) → video (FFmpeg)
+│   ├── bin/mediatool-render     # CLI của engine (tool compose_render gọi khi xuất)
 │   ├── bin/mediatool-server
 │   └── bin/mediatool-mcp        # MCP server (rmcp), chỉ gọi HTTP API
 ├── sdk/python/mediatool_sdk/    # hợp đồng tool: BaseTool, Context, kiểu asset, vi (tiếng Việt), ffmpeg, testing
@@ -97,6 +99,7 @@ MediaTool/
 ├── packages/
 │   ├── workspace/               # ★ CORE UI: layout, player, timeline, asset bin, job bar, các slot
 │   ├── ui/                      # @mediatool/ui: Button, Slider, Select, Section, ColorPicker, FontPicker…
+│   ├── editor/                  # @mediatool/editor: timeline editor (xem trước bằng engine native)
 │   ├── miniapp-sdk/             # @mediatool/miniapp-sdk: defineMiniApp + kiểu của ws API (hợp đồng với mini app)
 │   └── api-client/              # @mediatool/api-client (TS), sinh từ OpenAPI
 ├── sandbox/                     # app kiểm thử: Tools + Mini apps (tự liệt kê)
@@ -267,6 +270,8 @@ Trạng thái job: `queued → running → succeeded | failed | cancelled`.
 | POST | `/v1/tools/{id}/jobs` | Chạy tool |
 | GET | `/v1/jobs/{id}` · `/events` (SSE) | Trạng thái, kết quả / tiến độ |
 | POST | `/v1/jobs/{id}/cancel` | Hủy job |
+| POST | `/v1/preview/frame` | Engine native render 1 khung của composition → JPEG + khung bao từng lớp |
+| GET | `/v1/assets/{id}/filmstrip` · `/peaks` | Dải ảnh thu nhỏ (JPEG) / đỉnh sóng âm (JSON) cho timeline, có cache |
 | GET | `/v1/system` | Tài nguyên, profile, model đã tải |
 
 Spec OpenAPI được sinh từ core. `@mediatool/api-client` được sinh tự động từ spec, không viết tay.
@@ -318,7 +323,7 @@ Spec OpenAPI được sinh từ core. `@mediatool/api-client` được sinh tự
 | Mini app, kit, sandbox, shell | TypeScript, React, Vite |
 | Desktop | Tauri 2 |
 | MCP | rmcp |
-| Media (engine native, xem [ENGINES.md](ENGINES.md)) | FFmpeg + PyAV, libass, **MLT** (dựng timeline), Skia + Skottie/rlottie (chữ nghệ thuật, Lottie), Demucs, Rubber Band, faster-whisper / whisper.cpp |
+| Media (engine native, xem [ENGINES.md](ENGINES.md)) | **Engine render Rust**: FFmpeg (`ffmpeg-the-third`) + Skia (`skia-safe`); libass, Demucs, Rubber Band, faster-whisper / whisper.cpp |
 
 ## 17. Lộ trình
 

@@ -9,8 +9,8 @@
 | Cách | Khi nào | Ví dụ |
 |---|---|---|
 | **Gói có sẵn bản build** (pip wheel, apt, npm) | Mặc định | `av` (PyAV), `faster-whisper`, `demucs`, `ffmpeg` (apt) |
-| **Bản build phát hành chính thức** (release binary) | Engine C++ không có gói Python tốt | `melt` (MLT), `whisper.cpp`, `rubberband` CLI |
-| **Build từ source trong Docker** | Cần bật tùy chọn build đặc biệt | FFmpeg kèm libass + librubberband, MLT kèm plugin |
+| **Bản build phát hành chính thức** (release binary) | Engine C++ không có gói Python tốt | `whisper.cpp`, `rubberband` CLI |
+| **Crate Rust bọc thư viện native** | Engine trong core Rust | `ffmpeg-the-third`, `skia-safe` |
 | **Vendor source (git submodule)** | Chỉ khi buộc phải sửa engine | Tránh dùng |
 
 - Engine được cài theo **runtime profile** (`profiles/base`, `profiles/torch-cpu`, `profiles/media-pro`…), không cài riêng trong từng tool. Tool khai báo `profile` trong manifest.
@@ -29,33 +29,34 @@
 
 ### 2.2 Dựng hình theo timeline, chữ nghệ thuật, animation (`compose_*`)
 
-Thay vì tự viết bộ dựng, `compose_render` **dịch composition JSON sang định dạng của engine** rồi gọi engine render:
+**Engine render native viết bằng Rust** (`core/crates/engine`, binary `mediatool-render`), theo kiến trúc của [Concat](https://github.com/jub0t/Concat): engine tách khỏi giao diện, **một đường render dùng chung cho xem trước và xuất file**, lập kế hoạch khung thuần dữ liệu. Phần nặng đều là thư viện native đã được kiểm chứng:
 
-| Engine | Vai trò trong MediaTool | Vì sao |
+| Thư viện | Vai trò | Vì sao |
 |---|---|---|
-| **MLT Framework** (C++, LGPL) | **Engine dựng timeline chính**: nhiều track, cắt ghép, transition, keyframe vị trí/to nhỏ/độ rõ, filter màu, trộn tiếng, xuất qua FFmpeg | Engine của Kdenlive và Shotcut; chạy tốt trên CPU; có CLI `melt` và định dạng dự án MLT XML |
-| **Skia** (Google, BSD) qua `skia-python` | Vẽ **chữ nghệ thuật** (gradient, nhiều lớp viền, bóng, phát sáng, uốn chữ, dàn chữ chuẩn bằng HarfBuzz) thành lớp ảnh/chuỗi ảnh trong suốt để MLT ghép | Engine đồ họa của Chrome và Android; dấu tiếng Việt luôn đúng |
-| **Skottie** (trong Skia) hoặc **rlottie** (Samsung, C++) | Render **animation Lottie** (xuất từ After Effects / LottieFiles): chữ chạy từng ký tự, sticker động, intro/outro, lower third | Kho template Lottie miễn phí rất lớn; không phải tự viết animation |
-| **libass** | Lớp lời/karaoke khi cần hiệu năng cao (`lyrics` layer kiểu `karaoke`) | Render nhanh hơn nhiều so với vẽ từng chữ bằng Skia |
-
-Composition → engine:
+| **FFmpeg** qua [`ffmpeg-the-third`](https://crates.io/crates/ffmpeg-the-third) (libavformat, libavcodec, swscale) | Giải mã video, seek, đổi sang RGBA đúng kích thước cần hiển thị; decoder giữ mở giữa các khung | Chuẩn công nghiệp; cũng là lựa chọn của Concat |
+| **FFmpeg CLI** | Mã hóa H.264/AAC (`libx264`), cắt/dời/chỉnh âm lượng/trộn tiếng các lớp (`atrim`, `adelay`, `volume`, `amix`) | Ổn định, đủ codec, không phải tự viết mux/mix |
+| **Skia** qua [`skia-safe`](https://crates.io/crates/skia-safe) (feature `textlayout`) | Ghép lớp, biến đổi, độ rõ, blur, color matrix, gradient; chữ dàn trang bằng Skia Paragraph (HarfBuzz + ICU) | Engine đồ họa của Chrome/Android; dấu tiếng Việt luôn đúng; có backend GPU khi cần |
+| **libass** *(sau)* | Lớp lời/karaoke hiệu năng cao | Nhanh hơn vẽ từng chữ |
+| **Skottie** (trong Skia) *(sau)* | Animation Lottie (template After Effects/LottieFiles) | Không phải tự viết animation phức tạp |
 
 ```
-Composition JSON ──compose_render──► MLT XML (track, clip, transition, filter, keyframe)
-        │                                   ▲
-        ├─ lớp text nghệ thuật ──Skia──► PNG sequence / video alpha ─┘
-        ├─ lớp animation Lottie ──Skottie/rlottie──► video alpha ─┘
-        └─ lớp lyrics karaoke ──► ASS ──libass (filter của MLT/FFmpeg)─┘
-                                    melt ──► FFmpeg encode ──► MP4
+Composition JSON ─► plan (anim + keyframe, thuần dữ liệu) ─► Skia ghép lớp ─┬─► JPEG + khung bao  (POST /v1/preview/frame)
+        nguồn video ─► FFmpeg decode + swscale ──────────────────────────────┘
+                                                                            └─► RGBA ─pipe─► FFmpeg libx264 + amix ─► MP4  (tool compose_render)
 ```
 
-**Đã cân nhắc và không chọn làm engine chính:**
+- **Xem trước:** core giữ một luồng render riêng với Renderer sống lâu (decoder mở sẵn), nên kéo timeline chỉ tốn vài chục ms mỗi khung.
+- **Xuất file:** tool `compose_render` (Python, lớp vỏ mỏng) gọi `mediatool-render export`, đọc tiến độ JSON-lines.
+- **Sau này:** backend GPU (Skia Ganesh/Graphite hoặc wgpu như Concat), giải mã phần cứng (VAAPI/D3D11VA qua FFmpeg).
 
-| Engine | Lý do |
+**Đã cân nhắc và không chọn:**
+
+| Hướng | Lý do |
 |---|---|
+| Dùng thẳng crate của Concat | License AGPL-3.0 → cả MediaTool phải theo AGPL |
+| MLT (`melt`) | Ổn định nhưng khó nhúng cho xem trước tương tác, không chia sẻ được đường render với preview |
 | Remotion (React) | Cần Chromium headless (tốn RAM trên máy 8 GB); license thương mại cho công ty trên 3 người |
-| Motion Canvas / Revideo | Cũng render qua trình duyệt; hợp cho motion graphics viết bằng code, chưa hợp làm engine timeline |
-| GStreamer Editing Services | Mạnh nhưng nặng và khó triển khai hơn MLT cho nhu cầu này |
+| Motion Canvas / Revideo | Render qua trình duyệt; chưa hợp làm engine timeline |
 | MoviePy | Thuần Python, chậm với video dài |
 
 ### 2.3 Âm thanh
@@ -100,21 +101,21 @@ Composition JSON ──compose_render──► MLT XML (track, clip, transition,
 |---|---|
 | `media_*`, `video_demux`, `video_extract_frames`, `video_speed`, `video_reframe`, `media_burn_subtitle` | FFmpeg (+ libass) |
 | `video_scene_detect`, `video_thumbnail` | PySceneDetect, OpenCV |
-| `video_beat_sync_edit`, `video_color_grade`, `video_effects`, `video_from_images` | MLT (dựng, transition, filter, LUT), FFmpeg |
+| `video_beat_sync_edit`, `video_color_grade`, `video_effects`, `video_from_images` | Engine render (Skia + FFmpeg), filter FFmpeg |
 | `audio_separate_stems` | Demucs |
 | `audio_vocal_cleanup` | python-audio-separator (UVR) |
 | `audio_denoise` | DeepFilterNet |
 | `audio_normalize` | FFmpeg loudnorm |
 | `audio_pitch_shift`, `audio_time_stretch` | Rubber Band |
 | `audio_effects`, `audio_remix_preset` | Pedalboard (hoặc filter FFmpeg) + Rubber Band |
-| `audio_mix` | FFmpeg `amix` / MLT |
+| `audio_mix` | FFmpeg `amix` |
 | `music_beat_track` | Beat This!, dự phòng librosa |
 | `music_vocal_activity` | Silero VAD |
 | `music_key_detect`, `music_sections`, `music_pitch_track` | librosa, torchcrepe |
 | `speech_transcribe` | faster-whisper (hoặc whisper.cpp) |
 | `lyrics_align` | CTC forced alignment (torchaudio / WhisperX) |
 | `karaoke_render_subtitle`, `karaoke_compose` | Sinh ASS + libass, FFmpeg |
-| `compose_render`, `compose_render_frame` | MLT + Skia + Skottie/rlottie + libass |
+| `compose_render`, `compose_render_frame` | Engine render native: Skia + FFmpeg (`mediatool-render`) |
 | `compose_text_art` | Skia |
 
 `lyrics_import`, `lyrics_export`, `lyrics_snap_to_beat`, `lyrics_retime` và các tool `compose_*` sửa dữ liệu là xử lý dữ liệu thuần (JSON, văn bản), không cần engine native.
@@ -123,8 +124,8 @@ Composition JSON ──compose_render──► MLT XML (track, clip, transition,
 
 | Mức | Engine |
 |---|---|
-| Thoải mái (MIT, BSD, Apache, ISC) | PyAV, Skia/Skottie, libass, Demucs, faster-whisper, whisper.cpp, Beat This!, Silero VAD, librosa, PySceneDetect, OpenCV, DeepFilterNet |
-| LGPL (dùng được, giữ dạng thư viện động) | FFmpeg (bản build không kèm thành phần GPL), MLT, SoundTouch |
+| Thoải mái (MIT, BSD, Apache, ISC) | ffmpeg-the-third (WTFPL), skia-safe (MIT), PyAV, Skia/Skottie, libass, Demucs, faster-whisper, whisper.cpp, Beat This!, Silero VAD, librosa, PySceneDetect, OpenCV, DeepFilterNet |
+| LGPL (dùng được, giữ dạng thư viện động) | FFmpeg (bản build không kèm thành phần GPL), SoundTouch |
 | **GPL** (ảnh hưởng tới cách phân phối app) | Rubber Band, Pedalboard, FFmpeg build kèm x264/rubberband |
 | **Phi thương mại** (CC-BY-NC) | Nhiều model căn lời và phiên âm tiếng Việt, một số model UVR, model của madmom |
 

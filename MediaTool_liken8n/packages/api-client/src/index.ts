@@ -116,6 +116,25 @@ export interface JobEvent {
   [k: string]: unknown;
 }
 
+export interface LayerBounds {
+  id: string;
+  /** góc trái trên + kích thước, theo tỉ lệ 0..1 của khung hình */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  rotation: number;
+}
+
+export interface PreviewFrame {
+  /** data:image/jpeg;base64,... */
+  image: string;
+  width: number;
+  height: number;
+  bounds: LayerBounds[];
+  render_ms: number;
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -182,6 +201,28 @@ export class MediaToolClient {
     const qs = q.toString();
     return `${this.baseUrl}/v1/assets/${id}/content${qs ? "?" + qs : ""}`;
   }
+
+  /** Engine native render một khung hình của composition (JPEG) + khung bao từng lớp để chỉnh trên preview. */
+  previewFrame = (composition: unknown, time: number, width: number, signal?: AbortSignal) =>
+    fetch(this.baseUrl + "/v1/preview/frame", {
+      method: "POST",
+      headers: this.headers({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ composition, time, width }),
+      signal,
+    }).then(async (res) => {
+      if (!res.ok) throw await toError(res);
+      return res.json() as Promise<PreviewFrame>;
+    });
+
+  /** Dải ảnh thu nhỏ của video (engine native, có cache) — dùng làm nền clip trên timeline. */
+  filmstripUrl(id: string, count: number, height: number): string {
+    const q = new URLSearchParams({ count: String(count), height: String(height) });
+    if (this.token) q.set("token", this.token);
+    return `${this.baseUrl}/v1/assets/${id}/filmstrip?${q}`;
+  }
+
+  /** Đỉnh sóng âm 0..1 (engine native, có cache). */
+  peaks = (id: string, buckets: number) => this.req<{ buckets: number; peaks: number[] }>("GET", `/v1/assets/${id}/peaks?buckets=${buckets}`);
 
   listJobs = async () => (await this.req<{ jobs: Job[] }>("GET", "/v1/jobs")).jobs;
   getJob = (id: string) => this.req<Job>("GET", `/v1/jobs/${id}`);

@@ -20,3 +20,5 @@ futures-util.workspace = true
 mediatool-registry.workspace = true
 mediatool-storage.workspace = true
 mediatool-jobs.workspace = true
+mediatool-engine.workspace = true
+base64 = "0.22"

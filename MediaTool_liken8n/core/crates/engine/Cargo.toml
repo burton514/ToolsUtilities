@@ -1,0 +1,17 @@
+[package]
+name = "mediatool-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Engine render native: Composition -> khung hình (Skia) -> video (FFmpeg)"
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+
+
+skia-safe = { version = "0.157", features = ["textlayout"] }
+ffmpeg-the-third = { version = "6" }
+
+[dev-dependencies]
+serde_json.workspace = true

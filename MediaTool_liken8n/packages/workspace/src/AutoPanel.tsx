@@ -5,6 +5,20 @@ import { isAssetRef, type AssetRef, type JsonSchema, type ToolDetail } from "@me
 import type { ToolRunResult } from "@mediatool/miniapp-sdk";
 import { accepts, useSession, type Session } from "./session";
 
+export function resolveSchema(schema: JsonSchema, root: JsonSchema): JsonSchema {
+  return resolve(schema, root);
+}
+
+/** Giá trị mặc định của mọi tham số theo schema. */
+export function defaultParams(root: JsonSchema | null | undefined): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(root?.properties ?? {})) {
+    const s = resolve(v, root!);
+    if (s.default !== undefined) out[k] = s.default;
+  }
+  return out;
+}
+
 function resolve(schema: JsonSchema, root: JsonSchema): JsonSchema {
   if (schema.$ref) {
     const name = schema.$ref.split("/").pop()!;
@@ -14,7 +28,7 @@ function resolve(schema: JsonSchema, root: JsonSchema): JsonSchema {
   return schema;
 }
 
-function ParamField({ name, schema, value, onChange }: { name: string; schema: JsonSchema; value: unknown; onChange: (v: unknown) => void }) {
+export function ParamField({ name, schema, value, onChange }: { name: string; schema: JsonSchema; value: unknown; onChange: (v: unknown) => void }) {
   const label = schema.title ?? name;
   const hint = schema.description;
   if (schema.enum) {

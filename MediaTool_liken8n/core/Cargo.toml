@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/registry", "crates/storage", "crates/jobs", "crates/api", "bin/server"]
+members = ["crates/registry", "crates/storage", "crates/jobs", "crates/api", "crates/engine", "bin/server", "bin/render"]
 
 [workspace.package]
 version = "0.1.0"
@@ -29,3 +29,4 @@ mediatool-registry = { path = "crates/registry" }
 mediatool-storage = { path = "crates/storage" }
 mediatool-jobs = { path = "crates/jobs" }
 mediatool-api = { path = "crates/api" }
+mediatool-engine = { path = "crates/engine" }

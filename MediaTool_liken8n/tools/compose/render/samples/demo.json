@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "canvas": { "width": 1280, "height": 720, "fps": 25, "background": "#101828" },
+  "duration": 3,
+  "layers": [
+    {
+      "id": "v", "name": "Video", "type": "video", "source": "file:sample_3s.mp4", "fit": "contain",
+      "trim_start": 0, "volume": 100, "muted": false,
+      "start": 0, "duration": 3, "x": 0.5, "y": 0.5, "scale": 0.9, "rotation": 0, "opacity": 100,
+      "effects": [{ "type": "dim", "amount": 30 }]
+    },
+    {
+      "id": "s", "name": "Sao", "type": "shape", "shape": "star", "w": 0.12, "h": 0.2, "fill": "#FFD54F", "corner_radius": 0,
+      "start": 0, "duration": 3, "x": 0.15, "y": 0.2, "scale": 1, "rotation": 0, "opacity": 100,
+      "animation": { "loop": { "preset": "rotate", "duration": 2 } },
+      "keyframes": { "x": [{ "t": 0, "value": 0.1, "ease": "ease_out" }, { "t": 3, "value": 0.9, "ease": "ease_in_out" }] }
+    },
+    {
+      "id": "t", "name": "Tiêu đề", "type": "text", "text": "Xin chào MediaTool — chữ tiếng Việt",
+      "style": {
+        "font": "Noto Sans", "weight": 800, "size": 64, "color": "#FFD54F",
+        "gradient": { "colors": ["#FFF3B0", "#FFB300", "#B8860B"], "angle": 90 },
+        "stroke": { "color": "#3E2723", "width": 5 }, "glow": { "color": "#FF6D00", "radius": 14 },
+        "align": "center", "letter_spacing": 1, "max_width": 0.85
+      },
+      "start": 0.2, "duration": 2.8, "x": 0.5, "y": 0.8, "scale": 1, "rotation": -3, "opacity": 100,
+      "animation": { "in": { "preset": "pop_bounce", "duration": 0.6 }, "out": { "preset": "fade", "duration": 0.4 } }
+    }
+  ]
+}

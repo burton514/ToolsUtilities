@@ -21,7 +21,10 @@ services:
 
   # Build/test core Rust mà không cài Rust lên máy: docker compose run --rm rust cargo test
   rust:
-    image: rust:1-bookworm
+    build:
+      context: .
+      dockerfile: docker/rust-dev.Dockerfile
+    image: mediatool-rust-dev:dev
     profiles: ["dev"]
     working_dir: /src/core
     volumes:
