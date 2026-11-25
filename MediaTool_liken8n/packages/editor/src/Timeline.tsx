@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MediaToolClient } from "@mediatool/api-client";
 import { Eye, EyeOff, Image, Lock, LockOpen, Flag, Magnet, Sparkles, Maximize2, Music, ZoomIn, ZoomOut, Square, Type, Video, Volume2, VolumeX } from "lucide-react";
 import { compEnd, layerEnd, newId, type Layer } from "./model";
+import { startDrag as beginDrag } from "./pointer";
 import { useEditor, type EditorStore } from "./store";
 
 const HEAD_W = 170;
@@ -217,9 +218,7 @@ export function Timeline({ store, client }: { store: EditorStore; client: MediaT
     const x0 = e.clientX, y0 = e.clientY, sl = el.scrollLeft, st = el.scrollTop;
     setPanning(true);
     const move = (ev: PointerEvent) => { el.scrollLeft = sl - (ev.clientX - x0); el.scrollTop = st - (ev.clientY - y0); };
-    const up = () => { setPanning(false); window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+    beginDrag(move, () => setPanning(false));
   };
 
   const fitAll = () => {
@@ -286,24 +285,14 @@ export function Timeline({ store, client }: { store: EditorStore; client: MediaT
         store.updateLayer(l.id, patch, key);
       }
     };
-    const up = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+    beginDrag(move);
   };
 
   const dragPlayhead = (e: React.PointerEvent) => {
     e.preventDefault();
     seekFromEvent(e.clientX);
     const move = (ev: PointerEvent) => seekFromEvent(ev.clientX);
-    const up = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+    beginDrag(move);
   };
 
   const step = pps >= 160 ? 0.5 : pps >= 80 ? 1 : pps >= 30 ? 2 : pps >= 15 ? 5 : pps >= 6 ? 10 : 30;

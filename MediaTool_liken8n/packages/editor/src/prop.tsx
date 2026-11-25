@@ -1,8 +1,9 @@
 // Control dạng "dòng thuộc tính" gọn kiểu app dựng chuyên nghiệp (CapCut/Premiere): nhãn | điều khiển | ô số.
 // Cùng tên/cùng props với @mediatool/ui nên mọi bảng trong editor (inspector, viền, bóng, hiệu ứng, chuyển động…)
 // đổi giao diện một lần ở đây.
-import { useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { ChevronDown, ChevronRight, Info, RotateCcw } from "lucide-react";
+import { startDrag } from "./pointer";
 
 const decimals = (step: number) => (step >= 1 ? 0 : Math.min(4, Math.ceil(-Math.log10(step))));
 const snap = (v: number, min: number, max: number, step: number) => {
@@ -80,22 +81,16 @@ export function Slider(props: {
   const { label, value, min, max, hint, format, unit, onChange, trailing } = props;
   const step = props.step ?? 1;
   const pct = Math.max(0, Math.min(100, ((value - min) / (max - min || 1)) * 100));
-  const drag = useRef<{ x: number; v: number } | null>(null);
   const scrub = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
-    drag.current = { x: e.clientX, v: value };
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    e.preventDefault();
+    const x0 = e.clientX, v0 = value;
+    startDrag((ev) => onChange(snap(v0 + (ev.clientX - x0) * ((max - min) / (ev.shiftKey ? 1200 : 240)), min, max, step)));
   };
   return (
     <div className={`ip-row ip-slider ${trailing ? "has-trail" : ""}`}>
       <span className="ip-label ip-scrub" title="Kéo sang trái/phải để chỉnh (giữ Shift: chậm)"
-        onPointerDown={scrub}
-        onPointerMove={(e) => {
-          if (!drag.current) return;
-          const k = (max - min) / (e.shiftKey ? 1200 : 240);
-          onChange(snap(drag.current.v + (e.clientX - drag.current.x) * k, min, max, step));
-        }}
-        onPointerUp={() => (drag.current = null)}>
+        onPointerDown={scrub}>
         <span className="ip-label-text">{label}</span>
         {hint && <span className="ip-hint" title={typeof hint === "string" ? hint : undefined}><Info size={11} /></span>}
       </span>

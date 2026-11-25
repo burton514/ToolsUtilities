@@ -3,7 +3,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { LayerBounds, MediaToolClient, PreviewFrame } from "@mediatool/api-client";
 import { Camera, Crosshair, Grid3x3, RectangleHorizontal, Repeat, ZoomIn, ZoomOut } from "lucide-react";
+import { startDrag as beginDrag } from "./pointer";
 import { type Platform, useEditor, type EditorStore } from "./store";
+import { valueAt, type Composition, type Layer } from "./model";
 
 // preset zoom theo OpenCut `preview/zoom.ts` (MIT)
 const ZOOM_PRESETS = [0.25, 0.5, 0.75, 1, 1.5, 2, 4, 8];
@@ -39,6 +41,9 @@ export function Preview({ store, client }: { store: EditorStore; client: MediaTo
   const rate = useEditor(store, (s) => s.rate);
   const loop = useEditor(store, (s) => s.loop);
   const [frame, setFrame] = useState<PreviewFrame | null>(null);
+  // bản dựng + thời điểm của khung đang hiển thị → khung chọn tự bù phần đã thay đổi từ đó (không đợi render xong)
+  const frameSrc = useRef<{ comp: Composition; time: number } | null>(null);
+  const interacting = useEditor(store, (s) => s.interacting);
   const [error, setError] = useState<string | null>(null);
   const [box, setBox] = useState({ w: 800, h: 450 });
   const [spaceDown, setSpaceDown] = useState(false);
@@ -73,6 +78,7 @@ export function Preview({ store, client }: { store: EditorStore; client: MediaTo
         busy.current = true;
         try {
           const f = await client.previewFrame(w.comp, w.time, w.width);
+          frameSrc.current = { comp: w.comp as Composition, time: w.time };
           setFrame(f);
           if (f.resolved) store.set({ resolved: f.resolved });
           setError(null);
@@ -88,12 +94,13 @@ export function Preview({ store, client }: { store: EditorStore; client: MediaTo
 
   // độ phân giải xin engine: theo kích thước đang hiển thị × mật độ điểm ảnh (khi phát thì giảm để mượt)
   const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
-  const wantW = Math.min(cw, Math.max(160, Math.round(stageW * dpr * (playing ? 0.5 : 1))));
+  // đang phát hoặc đang kéo: render độ phân giải thấp hơn để khung về nhanh, thả chuột là render nét lại
+  const wantW = Math.min(cw, Math.max(160, Math.round(stageW * dpr * (playing ? 0.5 : interacting ? 0.6 : 1))));
   const bucketW = Math.min(cw, Math.ceil(wantW / 160) * 160);
   useEffect(() => {
-    const id = setTimeout(() => request(comp, time, bucketW), playing ? 0 : 30);
+    const id = setTimeout(() => request(comp, time, bucketW), playing || interacting ? 0 : 30);
     return () => clearTimeout(id);
-  }, [comp, time, playing, bucketW]);
+  }, [comp, time, playing, interacting, bucketW]);
 
   // phím Space để pan (khi không phát)
   useEffect(() => {
@@ -136,16 +143,24 @@ export function Preview({ store, client }: { store: EditorStore; client: MediaTo
     const p0 = view.zoom === "fit" ? { panX: 0, panY: 0 } : view;
     const x0 = e.clientX, y0 = e.clientY;
     const move = (ev: PointerEvent) => store.set({ view: { zoom: z, panX: p0.panX + ev.clientX - x0, panY: p0.panY + ev.clientY - y0 } });
-    const up = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+    beginDrag(move);
   };
 
   const layer = comp.layers.find((l) => l.id === selected);
-  const boundsOf = (id: string): LayerBounds | undefined => frame?.bounds.find((x) => x.id === id);
+  /** Khung bao của lớp: lấy từ khung đã render rồi cộng phần vị trí/to nhỏ/xoay đã đổi sau đó → bám tay ngay khi kéo. */
+  const boundsOf = (id: string): LayerBounds | undefined => {
+    const b = frame?.bounds.find((x) => x.id === id);
+    const src = frameSrc.current;
+    const a = src?.comp.layers.find((x) => x.id === id);
+    const now = comp.layers.find((x) => x.id === id);
+    if (!b || !a || !now || !src) return b;
+    const v = (l: Layer, p: "x" | "y" | "scale" | "rotation", t: number) => valueAt(l, p, t);
+    const k = v(now, "scale", time) / (v(a, "scale", src.time) || 1);
+    const cx = b.x + b.w / 2 + (v(now, "x", time) - v(a, "x", src.time));
+    const cy = b.y + b.h / 2 + (v(now, "y", time) - v(a, "y", src.time));
+    const w = b.w * k, h = b.h * k;
+    return { ...b, x: cx - w / 2, y: cy - h / 2, w, h, rotation: b.rotation + (v(now, "rotation", time) - v(a, "rotation", src.time)) };
+  };
 
   const startDrag = (e: React.PointerEvent, mode: "move" | "scale" | "rotate") => {
     if (!layer || layer.locked) return;
@@ -183,12 +198,7 @@ export function Preview({ store, client }: { store: EditorStore; client: MediaTo
         store.updateLayer(layer.id, { rotation: +deg.toFixed(1) }, key);
       }
     };
-    const up = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+    beginDrag(move);
   };
 
   const snapshot = async () => {

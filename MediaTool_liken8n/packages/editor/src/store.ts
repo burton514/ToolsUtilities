@@ -34,6 +34,8 @@ export interface EditorState {
   pxPerSec: number;
   view: ViewState;
   guides: Guides;
+  /** đang giữ chuột (kéo clip/lớp/thanh trượt…) — xem trước render nhẹ hơn cho mượt */
+  interacting: boolean;
   /** thời gian đã giải mốc (engine trả về cùng khung xem trước) */
   resolved: Record<string, ResolvedLayer>;
   version: number;
@@ -57,7 +59,23 @@ export class EditorStore {
     }
     this.state = {
       comp, selection: [], selected: null, time: 0, playing: false, rate: 1, loop: false, snap: true, pxPerSec: 60,
-      view: { zoom: "fit", panX: 0, panY: 0 }, guides: { grid: false, safe: false, center: false, platform: "none" }, resolved: {}, version: 0,
+      view: { zoom: "fit", panX: 0, panY: 0 }, guides: { grid: false, safe: false, center: false, platform: "none" }, resolved: {}, interacting: false, version: 0,
+    };
+  }
+
+  /** Theo dõi giữ chuột toàn cửa sổ (gọi một lần khi editor mở; trả hàm gỡ). */
+  trackPointer() {
+    const down = () => !this.state.interacting && this.emit({ interacting: true });
+    const up = () => this.state.interacting && this.emit({ interacting: false });
+    window.addEventListener("pointerdown", down, true);
+    window.addEventListener("pointerup", up, true);
+    window.addEventListener("pointercancel", up, true);
+    window.addEventListener("blur", up);
+    return () => {
+      window.removeEventListener("pointerdown", down, true);
+      window.removeEventListener("pointerup", up, true);
+      window.removeEventListener("pointercancel", up, true);
+      window.removeEventListener("blur", up);
     };
   }
 

@@ -1,5 +1,5 @@
 // Timeline editor: thư viện file · xem trước (engine native) · timeline · thuộc tính. Xuất video qua tool compose_render.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Button, Notice, ProgressBar } from "@mediatool/ui";
 import { isAssetRef, type Asset, type AssetRef, type EffectInfo, type MediaToolClient } from "@mediatool/api-client";
 import { Inspector } from "./Inspector";
@@ -10,6 +10,7 @@ import {
   type Composition, type Layer,
 } from "./model";
 import { EditorStore, useEditor } from "./store";
+import { LAYOUT_DEFAULT, Splitter, useLayout } from "./layout";
 import { CATEGORY_LABEL, CATEGORY_TONE, defaultParams, useEffectLibrary } from "./fxlib";
 import { ArrowLeft, Copy, ClipboardPaste, Download, FilePlus2, FolderOpen, Music, Pause, Play, Redo2, Upload, Save, Scissors, Shapes, Sparkles, Trash2, Type, Undo2, Video } from "lucide-react";
 import "./editor.css";
@@ -225,6 +226,14 @@ export function Editor({ client, onExit }: { client: MediaToolClient; onExit?: (
   useEditor(store, (s) => s.version); // cập nhật trạng thái nút undo/redo
   const [exporting, setExporting] = useState(false);
   useAudioPlayback(store, client);
+  useEffect(() => store.trackPointer(), [store]);
+  // bố cục kéo được: thư viện | xem trước | thuộc tính, phần trên | timeline
+  const rootRef = useRef<HTMLDivElement>(null);
+  const fixedH = useCallback(() => {
+    const r = rootRef.current;
+    return (r?.querySelector(".ed-top")?.clientHeight ?? 48) + (r?.querySelector(".ed-foot")?.clientHeight ?? 24) + 6;
+  }, []);
+  const { layout, set: setLayout, vars } = useLayout(rootRef, fixedH);
 
   // Bản dựng dạng cũ (mở file / bản tự lưu trước đây) → nâng cấp bằng chính engine (một nguồn chuẩn duy nhất)
   useEffect(() => {
@@ -332,7 +341,7 @@ export function Editor({ client, onExit }: { client: MediaToolClient; onExit?: (
   };
 
   return (
-    <div className="ed-root">
+    <div className="ed-root" ref={rootRef} style={vars}>
       <header className="ed-top">
         {onExit && <Button small ghost icon={<ArrowLeft size={14} />} onClick={onExit}>Quay lại</Button>}
         <b className="ed-title">Dựng video</b>
@@ -358,8 +367,19 @@ export function Editor({ client, onExit }: { client: MediaToolClient; onExit?: (
         <Library store={store} client={client} />
         <Preview store={store} client={client} />
         <Inspector store={store} client={client} />
+        <Splitter axis="x" label="Độ rộng thư viện" className="ed-split-lib" value={layout.lib}
+          toValue={(ev) => ev.clientX - (rootRef.current?.getBoundingClientRect().left ?? 0)}
+          onChange={(lib, done) => setLayout({ lib }, done)} onReset={() => setLayout({ lib: LAYOUT_DEFAULT.lib }, true)} />
+        <Splitter axis="x" label="Độ rộng bảng thuộc tính" className="ed-split-insp" value={layout.insp}
+          toValue={(ev) => (rootRef.current?.getBoundingClientRect().right ?? 0) - ev.clientX}
+          onChange={(insp, done) => setLayout({ insp }, done)} onReset={() => setLayout({ insp: LAYOUT_DEFAULT.insp }, true)} />
       </div>
-      <Timeline store={store} client={client} />
+      <div className="ed-tl-wrap">
+        <Splitter axis="y" label="Chiều cao timeline" className="ed-split-tl" value={layout.tl}
+          toValue={(ev) => (rootRef.current?.querySelector(".ed-foot")?.getBoundingClientRect().top ?? window.innerHeight) - ev.clientY}
+          onChange={(tl, done) => setLayout({ tl }, done)} onReset={() => setLayout({ tl: LAYOUT_DEFAULT.tl }, true)} />
+        <Timeline store={store} client={client} />
+      </div>
       <footer className="ed-foot ed-dim">Space phát/dừng · L lặp · S cắt · Ctrl+C/X/V · Ctrl+D nhân bản · Ctrl+A chọn hết · Del xóa · Shift+Del xóa dồn · ←/→ từng khung (Shift: 1 giây) · ↑/↓ dời lớp · Ctrl+Z/Y · Shift/Ctrl+bấm: chọn nhiều · Alt khi kéo: tắt hút · Ctrl+lăn: zoom</footer>
       {exporting && <ExportPanel store={store} client={client} onClose={() => setExporting(false)} />}
     </div>
