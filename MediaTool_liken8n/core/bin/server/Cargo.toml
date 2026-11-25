@@ -1,0 +1,16 @@
+[package]
+name = "mediatool-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Core MediaTool chạy độc lập (Docker / VPS / máy dev)"
+
+[[bin]]
+name = "mediatool-server"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+tokio.workspace = true
+tracing-subscriber.workspace = true
+mediatool-api.workspace = true

@@ -1,0 +1,14 @@
+[package]
+name = "mediatool-jobs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Hàng đợi job, scheduler theo ngân sách RAM, chạy worker subprocess theo giao thức JSON-lines"
+
+[dependencies]
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+jsonschema.workspace = true
+mediatool-registry.workspace = true
+mediatool-storage.workspace = true

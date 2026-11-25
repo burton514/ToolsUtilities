@@ -1,0 +1,35 @@
+[tool]
+id          = "video_demux"
+name        = "Tách video thành từng phần"
+version     = "0.1.0"
+sdk         = ">=0.1,<0.2"
+entry       = "tool:DemuxTool"
+summary     = "Tách một video thành hình (không tiếng), tiếng và các phụ đề có sẵn trong file."
+tags        = ["split", "audio", "subtitle", "ffmpeg"]
+owners      = ["mediatool-core"]
+license     = "MIT"
+status      = "beta"
+
+[runtime]
+profile     = "base"
+ram_mb      = 200
+gpu         = "none"
+heavy       = false
+timeout_s   = 1800
+
+[dependencies]
+binaries    = ["ffmpeg", "ffprobe"]
+
+[mcp]
+expose      = true
+hint        = "Bước đầu tiên khi xử lý video: lấy 'audio' (format audio) để tách giọng, phiên âm, căn lời; lấy 'video' (format video) để dựng lại."
+
+[[examples]]
+title       = "Tách hình và tiếng (WAV)"
+inputs      = { video = "samples/sample_3s.mp4" }
+params      = { audio_format = "wav" }
+
+[[examples]]
+title       = "Tách tiếng giữ nguyên định dạng + phụ đề"
+inputs      = { video = "samples/sample_sub.mkv" }
+params      = { audio_format = "original", extract_subtitles = true }

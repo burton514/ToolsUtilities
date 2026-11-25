@@ -1,0 +1,12 @@
+[package]
+name = "mediatool-registry"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Tự phát hiện tool (tools/**/manifest.toml) và mini app (miniapps/*/manifest.json)"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+tracing.workspace = true

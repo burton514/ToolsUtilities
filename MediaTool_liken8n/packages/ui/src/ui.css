@@ -1,0 +1,90 @@
+/* @mediatool/ui — token giao diện dùng chung. Mini app KHÔNG định nghĩa lại các biến này. */
+:root {
+  --mt-bg: #f6f7f9;
+  --mt-surface: #ffffff;
+  --mt-surface-2: #eef0f3;
+  --mt-border: #dcdfe5;
+  --mt-text: #1b1f24;
+  --mt-text-dim: #5d6673;
+  --mt-accent: #2f6fed;
+  --mt-accent-text: #ffffff;
+  --mt-ok: #1f9d55;
+  --mt-warn: #b7791f;
+  --mt-danger: #d64545;
+  --mt-radius: 8px;
+  --mt-gap: 12px;
+  --mt-font: "Be Vietnam Pro", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mt-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --mt-bg: #121418;
+    --mt-surface: #1b1e24;
+    --mt-surface-2: #252931;
+    --mt-border: #333944;
+    --mt-text: #e8eaee;
+    --mt-text-dim: #9aa3b0;
+    --mt-accent: #5b8cff;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --mt-bg: #121418;
+  --mt-surface: #1b1e24;
+  --mt-surface-2: #252931;
+  --mt-border: #333944;
+  --mt-text: #e8eaee;
+  --mt-text-dim: #9aa3b0;
+  --mt-accent: #5b8cff;
+  color-scheme: dark;
+}
+
+.mt-section { display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--mt-border); }
+.mt-section:last-child { border-bottom: 0; }
+.mt-section > h4 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--mt-text-dim); }
+
+.mt-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.mt-field > .mt-label { display: flex; justify-content: space-between; gap: 8px; font-weight: 500; }
+.mt-field > .mt-label .mt-value { color: var(--mt-text-dim); font-variant-numeric: tabular-nums; }
+.mt-hint { font-size: 12px; color: var(--mt-text-dim); line-height: 1.4; }
+
+.mt-input, .mt-select, .mt-textarea {
+  font: inherit; font-size: 13px; color: var(--mt-text); background: var(--mt-surface);
+  border: 1px solid var(--mt-border); border-radius: 6px; padding: 6px 8px; width: 100%; box-sizing: border-box;
+}
+.mt-textarea { resize: vertical; min-height: 64px; }
+.mt-input:focus, .mt-select:focus, .mt-textarea:focus { outline: 2px solid var(--mt-accent); outline-offset: -1px; }
+.mt-slider { width: 100%; accent-color: var(--mt-accent); }
+
+.mt-btn {
+  font: inherit; font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 7px 12px; border-radius: 6px; border: 1px solid var(--mt-border); background: var(--mt-surface);
+  color: var(--mt-text); cursor: pointer;
+}
+.mt-btn:hover:not(:disabled) { background: var(--mt-surface-2); }
+.mt-btn:disabled { opacity: .5; cursor: not-allowed; }
+.mt-btn.primary { background: var(--mt-accent); border-color: var(--mt-accent); color: var(--mt-accent-text); }
+.mt-btn.primary:hover:not(:disabled) { filter: brightness(1.08); background: var(--mt-accent); }
+.mt-btn.danger { color: var(--mt-danger); }
+.mt-btn.small { padding: 3px 8px; font-size: 12px; }
+.mt-btn.block { width: 100%; }
+
+.mt-toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.mt-toggle input { accent-color: var(--mt-accent); width: 16px; height: 16px; }
+
+.mt-badge { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 999px; background: var(--mt-surface-2); color: var(--mt-text-dim); white-space: nowrap; }
+.mt-badge.ok { background: color-mix(in srgb, var(--mt-ok) 18%, transparent); color: var(--mt-ok); }
+.mt-badge.warn { background: color-mix(in srgb, var(--mt-warn) 18%, transparent); color: var(--mt-warn); }
+.mt-badge.danger { background: color-mix(in srgb, var(--mt-danger) 18%, transparent); color: var(--mt-danger); }
+.mt-badge.accent { background: color-mix(in srgb, var(--mt-accent) 18%, transparent); color: var(--mt-accent); }
+
+.mt-progress { height: 6px; border-radius: 3px; background: var(--mt-surface-2); overflow: hidden; }
+.mt-progress > div { height: 100%; background: var(--mt-accent); transition: width .2s; }
+.mt-progress.ok > div { background: var(--mt-ok); }
+.mt-progress.danger > div { background: var(--mt-danger); }
+
+.mt-notice { font-size: 13px; padding: 8px 10px; border-radius: 6px; background: var(--mt-surface-2); }
+.mt-notice.danger { background: color-mix(in srgb, var(--mt-danger) 12%, transparent); color: var(--mt-danger); }
+.mt-notice.warn { background: color-mix(in srgb, var(--mt-warn) 14%, transparent); }
+.mt-notice.ok { background: color-mix(in srgb, var(--mt-ok) 12%, transparent); }

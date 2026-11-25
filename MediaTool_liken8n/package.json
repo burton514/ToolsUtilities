@@ -1,0 +1,20 @@
+{
+  "name": "mediatool",
+  "private": true,
+  "version": "0.1.0",
+  "description": "MediaTool monorepo (frontend: packages, sandbox, mini apps)",
+  "workspaces": [
+    "packages/*",
+    "sandbox"
+  ],
+  "scripts": {
+    "sandbox": "npm run dev -w sandbox",
+    "build": "npm run build -w sandbox",
+    "typecheck": "tsc -p sandbox/tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "typescript": "~5.6.3"
+  }
+}

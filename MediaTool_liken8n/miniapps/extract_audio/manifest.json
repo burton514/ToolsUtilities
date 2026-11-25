@@ -1,0 +1,18 @@
+{
+  "name": "extract_audio",
+  "title": "Tách âm thanh khỏi video",
+  "description": "Chọn một video, xem thông tin, tách lấy tiếng (WAV/MP3/giữ nguyên) và phụ đề có sẵn.",
+  "category": "video",
+  "version": "0.1.0",
+  "sdk": "^0.1",
+  "icon": "icon.svg",
+  "owners": ["mediatool-core"],
+  "accepts": [{ "format": "video", "multiple": false }],
+  "layout": "video",
+  "slots": ["panel", "toolbar"],
+  "tools": ["media_probe", "video_demux"],
+  "workflowSuggestions": [
+    { "title": "Tách tiếng → Tách giọng", "prompt": "Tách tiếng của video này rồi tách riêng giọng hát." }
+  ],
+  "related": []
+}

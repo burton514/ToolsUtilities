@@ -1,0 +1,15 @@
+{
+  "info.title": "Thông tin video",
+  "info.loading": "Đang đọc thông tin…",
+  "format.title": "Định dạng tiếng",
+  "format.wav": "WAV — dễ xử lý tiếp nhất",
+  "format.mp3": "MP3 — file nhẹ",
+  "format.original": "Giữ nguyên — nhanh nhất",
+  "subs": "Lấy luôn phụ đề có sẵn",
+  "cta": "Tách âm thanh",
+  "running": "Đang tách…",
+  "done": "Xong: {summary}",
+  "step.probe": "Đọc thông tin video",
+  "step.demux": "Tách hình và tiếng",
+  "toolbar.reprobe": "Đọc lại thông tin"
+}

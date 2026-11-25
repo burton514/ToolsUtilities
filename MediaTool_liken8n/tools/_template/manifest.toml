@@ -1,0 +1,33 @@
+# (1) ĐĂNG KÝ — core tự phát hiện tool qua file này. Xem docs/TOOL_AUTHORING.md mục 1.
+[tool]
+id          = "__TOOL_ID__"
+name        = "__NAME__"
+version     = "0.1.0"
+sdk         = ">=0.1,<0.2"
+entry       = "tool:__CLASS__"
+summary     = "Mô tả ngắn tool làm gì."
+tags        = []
+owners      = ["ten-github-cua-ban"]
+license     = "MIT"
+status      = "experimental"
+
+[runtime]
+profile     = "base"
+isolated    = false
+ram_mb      = 200
+gpu         = "none"
+heavy       = false
+warm        = false
+timeout_s   = 600
+
+[dependencies]
+binaries    = []
+
+[mcp]
+expose      = true
+hint        = "Khi nào AI nên dùng tool này."
+
+[[examples]]
+title       = "Ví dụ cơ bản"
+inputs      = { file = "samples/sample.txt" }
+params      = { note = "xin chào" }

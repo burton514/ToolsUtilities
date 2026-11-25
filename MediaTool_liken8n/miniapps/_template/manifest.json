@@ -1,0 +1,16 @@
+{
+  "name": "_template",
+  "title": "Tên mini app",
+  "description": "Mô tả ngắn tính năng.",
+  "category": "video",
+  "version": "0.1.0",
+  "sdk": "^0.1",
+  "icon": "icon.svg",
+  "owners": ["ten-github-cua-ban"],
+  "accepts": [{ "format": "media", "multiple": false }],
+  "layout": "video",
+  "slots": ["panel"],
+  "tools": ["media_probe"],
+  "workflowSuggestions": [],
+  "related": []
+}

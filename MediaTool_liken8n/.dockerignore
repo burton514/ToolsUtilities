@@ -1,0 +1,12 @@
+.git
+.toolchain
+**/node_modules
+**/target
+**/__pycache__
+**/*.egg-info
+data
+desktop
+packages
+sandbox
+miniapps
+docs

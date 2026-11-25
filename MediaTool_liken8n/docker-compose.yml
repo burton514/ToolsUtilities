@@ -1,0 +1,35 @@
+# Dev stack. Gỡ sạch: docker compose down -v --rmi local
+services:
+  core:
+    build:
+      context: .
+      dockerfile: docker/core.Dockerfile
+    image: mediatool-core:dev
+    ports:
+      - "8787:8787"
+    environment:
+      MEDIATOOL_RAM_BUDGET_MB: "5500"
+      # Dev: SDK/worker đọc thẳng từ source đang mount → sửa không cần build lại image
+      PYTHONPATH: /app/sdk/python:/app/workers/python
+    volumes:
+      - ./tools:/app/tools:ro
+      - ./miniapps:/app/miniapps:ro
+      - ./config:/app/config:ro
+      - ./sdk/python:/app/sdk/python:ro
+      - ./workers/python:/app/workers/python:ro
+      - mediatool-data:/app/data
+
+  # Build/test core Rust mà không cài Rust lên máy: docker compose run --rm rust cargo test
+  rust:
+    image: rust:1-bookworm
+    profiles: ["dev"]
+    working_dir: /src/core
+    volumes:
+      - ./core:/src/core
+      - cargo-registry:/usr/local/cargo/registry
+      - cargo-target:/src/core/target
+
+volumes:
+  mediatool-data:
+  cargo-registry:
+  cargo-target:

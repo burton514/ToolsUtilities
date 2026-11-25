@@ -1,0 +1,22 @@
+[package]
+name = "mediatool-api"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "HTTP API /v1 + SSE. Dùng chung cho mediatool-server (VPS/Docker) và app desktop (nhúng)."
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+axum.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+tokio-stream.workspace = true
+futures-util.workspace = true
+mediatool-registry.workspace = true
+mediatool-storage.workspace = true
+mediatool-jobs.workspace = true

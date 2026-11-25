@@ -1,0 +1,30 @@
+[tool]
+id          = "media_probe"
+name        = "Xem thông tin file"
+version     = "0.1.0"
+sdk         = ">=0.1,<0.2"
+entry       = "tool:ProbeTool"
+summary     = "Đọc thông tin file video/audio (thời lượng, kích thước khung hình, fps, có tiếng không, các luồng) mà không thay đổi gì."
+tags        = ["info", "metadata", "ffprobe"]
+owners      = ["mediatool-core"]
+license     = "MIT"
+status      = "beta"
+
+[runtime]
+profile     = "base"
+ram_mb      = 100
+gpu         = "none"
+heavy       = false
+timeout_s   = 60
+
+[dependencies]
+binaries    = ["ffprobe"]
+
+[mcp]
+expose      = true
+hint        = "Dùng đầu tiên khi cần biết file dài bao lâu, là video hay audio, có tiếng/phụ đề không, trước khi chọn tool xử lý tiếp."
+
+[[examples]]
+title       = "Xem thông tin video mẫu"
+inputs      = { file = "samples/sample_3s.mp4" }
+params      = {}

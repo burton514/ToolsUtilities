@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mediatool-worker"
+version = "0.1.0"
+description = "Worker Python: chạy một tool theo giao thức worker (JSON-lines qua stdin/stdout)"
+requires-python = ">=3.11"
+dependencies = ["mediatool-sdk>=0.1,<0.2"]
+
+[tool.setuptools.packages.find]
+include = ["mediatool_worker*"]
