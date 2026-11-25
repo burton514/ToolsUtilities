@@ -141,6 +141,7 @@ pub fn router(state: AppState) -> Router {
         .route("/jobs/:id/events", get(job_events))
         .route("/jobs/:id/cancel", post(cancel_job))
         .route("/preview/frame", post(preview_frame))
+        .route("/composition/prepare", post(composition_prepare))
         .route("/system", get(system))
         .route("/registry/reload", post(reload_registry))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth));
@@ -472,12 +473,18 @@ async fn asset_filmstrip(
     }
     let count: u32 = q.get("count").and_then(|v| v.parse().ok()).unwrap_or(10).clamp(1, 60);
     let height: u32 = q.get("height").and_then(|v| v.parse().ok()).unwrap_or(64).clamp(16, 360);
-    let cache = s.store.data_dir().join("cache").join(format!("{id}_film_{count}_{height}.jpg"));
+    // đoạn thời gian tùy chọn (giây, theo file gốc): timeline zoom sâu chỉ xin phần đang thấy
+    let range = match (q.get("from").and_then(|v| v.parse::<f64>().ok()), q.get("to").and_then(|v| v.parse::<f64>().ok())) {
+        (Some(a), Some(b)) if b > a && a >= 0.0 => Some((a, b)),
+        _ => None,
+    };
+    let tag = range.map(|(a, b)| format!("_{:.3}-{:.3}", a, b)).unwrap_or_default();
+    let cache = s.store.data_dir().join("cache").join(format!("{id}_film_{count}_{height}{tag}.jpg"));
     let bytes = match tokio::fs::read(&cache).await {
         Ok(b) => b,
         Err(_) => {
             let path = a.path.to_string_lossy().into_owned();
-            let b = tokio::task::spawn_blocking(move || mediatool_engine::media::filmstrip(&path, count, height))
+            let b = tokio::task::spawn_blocking(move || mediatool_engine::media::filmstrip_range(&path, count, height, range))
                 .await
                 .map_err(|e| anyhow::anyhow!(e))?
                 .map_err(|e| ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "FILMSTRIP_FAILED", format!("{e:#}")))?;
@@ -576,6 +583,14 @@ struct PreviewBody {
 
 fn default_preview_width() -> u32 {
     960
+}
+
+/// Chuẩn hóa bản dựng (dạng cũ → mới) và giải mọi mốc thời gian — cùng một hàm engine dùng khi render.
+/// Editor dùng để nâng cấp bản dựng cũ; tool/AI dùng để biết thời gian thật của từng lớp/animation.
+async fn composition_prepare(Json(v): Json<Value>) -> ApiResult<Json<Value>> {
+    let comp: mediatool_engine::Composition = serde_json::from_value(v.get("composition").cloned().unwrap_or(v))
+        .map_err(|e| ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "BAD_COMPOSITION", e.to_string()))?;
+    Ok(Json(serde_json::to_value(comp.prepare()).map_err(|e| anyhow::anyhow!(e))?))
 }
 
 async fn preview_frame(State(s): State<AppState>, Json(b): Json<PreviewBody>) -> ApiResult<Json<Value>> {

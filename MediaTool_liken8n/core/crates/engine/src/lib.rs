@@ -12,7 +12,10 @@ pub mod anim;
 pub mod export;
 pub mod media;
 pub mod model;
+pub mod prepare;
 pub mod render;
+pub mod style;
+pub mod text;
 
 pub use export::{export, ExportOptions, Quality};
 pub use model::Composition;

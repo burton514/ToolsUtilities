@@ -133,6 +133,14 @@ export interface PreviewFrame {
   height: number;
   bounds: LayerBounds[];
   render_ms: number;
+  /** thời gian đã giải mốc của từng lớp (engine tính, dùng để timeline hiển thị đúng) */
+  resolved?: Record<string, ResolvedLayer>;
+}
+
+export interface ResolvedLayer {
+  start: number;
+  duration: number;
+  animations: { kind: string; windows: [number, number][] }[];
 }
 
 export class ApiError extends Error {
@@ -214,11 +222,23 @@ export class MediaToolClient {
       return res.json() as Promise<PreviewFrame>;
     });
 
+  /** Chuẩn hóa bản dựng (dạng cũ → mới) + giải mốc thời gian bằng chính engine render. */
+  prepareComposition = <T = unknown>(composition: unknown) => this.req<T>("POST", "/v1/composition/prepare", { composition });
+
   /** Dải ảnh thu nhỏ của video (engine native, có cache) — dùng làm nền clip trên timeline. */
-  filmstripUrl(id: string, count: number, height: number): string {
+  filmstripUrl(id: string, count: number, height: number, range?: [number, number]): string {
     const q = new URLSearchParams({ count: String(count), height: String(height) });
+    if (range) {
+      q.set("from", range[0].toFixed(3));
+      q.set("to", range[1].toFixed(3));
+    }
     if (this.token) q.set("token", this.token);
     return `${this.baseUrl}/v1/assets/${id}/filmstrip?${q}`;
+  }
+
+  /** Ảnh đại diện của video: một khung giữa video (engine native, có cache). */
+  thumbnailUrl(id: string, height = 360): string {
+    return this.filmstripUrl(id, 1, height);
   }
 
   /** Đỉnh sóng âm 0..1 (engine native, có cache). */

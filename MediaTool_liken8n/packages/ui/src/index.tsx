@@ -1,6 +1,7 @@
-// @mediatool/ui — component dùng chung cho workspace, sandbox và mọi mini app.
+// @mediatool/ui — component dùng chung cho app, workspace, editor và mọi mini app.
 import "./ui.css";
-import type { ReactNode, ButtonHTMLAttributes } from "react";
+import { useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { AlertTriangle, CheckCircle2, Info, Loader2, Upload, XCircle } from "lucide-react";
 
 export function Section({ title, children }: { title?: ReactNode; children: ReactNode }) {
   return (
@@ -28,10 +29,28 @@ export function Hint({ children }: { children: ReactNode }) {
   return <div className="mt-hint">{children}</div>;
 }
 
-type BtnProps = ButtonHTMLAttributes<HTMLButtonElement> & { primary?: boolean; danger?: boolean; small?: boolean; block?: boolean };
-export function Button({ primary, danger, small, block, className = "", ...rest }: BtnProps) {
-  const cls = ["mt-btn", primary && "primary", danger && "danger", small && "small", block && "block", className].filter(Boolean).join(" ");
-  return <button type="button" className={cls} {...rest} />;
+type BtnProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  primary?: boolean; danger?: boolean; ghost?: boolean; small?: boolean; large?: boolean; block?: boolean;
+  icon?: ReactNode; loading?: boolean;
+};
+export function Button({ primary, danger, ghost, small, large, block, icon, loading, className = "", children, disabled, ...rest }: BtnProps) {
+  const cls = ["mt-btn", primary && "primary", danger && "danger", ghost && "ghost", small && "small", large && "large", block && "block", className]
+    .filter(Boolean).join(" ");
+  return (
+    <button type="button" className={cls} disabled={disabled || loading} {...rest}>
+      {loading ? <Loader2 size={small ? 14 : 16} className="mt-spin" /> : icon}
+      {children}
+    </button>
+  );
+}
+
+/** Nút chỉ có icon: bắt buộc có nhãn (aria-label + tooltip). */
+export function IconButton({ label, on, small, className = "", children, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; on?: boolean; small?: boolean }) {
+  return (
+    <button type="button" aria-label={label} title={label} aria-pressed={on} className={["mt-iconbtn", on && "on", small && "small", className].filter(Boolean).join(" ")} {...rest}>
+      {children}
+    </button>
+  );
 }
 
 export function Slider(props: {
@@ -70,7 +89,7 @@ export function Toggle({ label, checked, onChange, hint }: { label: ReactNode; c
         <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
         <span>{label}</span>
       </label>
-      {hint && <div className="mt-hint" style={{ marginLeft: 24 }}>{hint}</div>}
+      {hint && <div className="mt-hint" style={{ marginLeft: 25 }}>{hint}</div>}
     </div>
   );
 }
@@ -96,12 +115,92 @@ export function Badge({ kind, children }: { kind?: "ok" | "warn" | "danger" | "a
 
 export function ProgressBar({ value, kind }: { value: number; kind?: "ok" | "danger" }) {
   return (
-    <div className={`mt-progress ${kind ?? ""}`}>
+    <div className={`mt-progress ${kind ?? ""}`} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(value * 100)}>
       <div style={{ width: `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%` }} />
     </div>
   );
 }
 
 export function Notice({ kind, children }: { kind?: "ok" | "warn" | "danger"; children: ReactNode }) {
-  return <div className={`mt-notice ${kind ?? ""}`}>{children}</div>;
+  const Icon = kind === "ok" ? CheckCircle2 : kind === "warn" ? AlertTriangle : kind === "danger" ? XCircle : Info;
+  return (
+    <div className={`mt-notice ${kind ?? ""}`} role={kind === "danger" ? "alert" : "status"}>
+      <Icon size={16} />
+      <div>{children}</div>
+    </div>
+  );
+}
+
+export function Card({ children, onClick, className = "" }: { children: ReactNode; onClick?: () => void; className?: string }) {
+  return (
+    <div className={`mt-card ${onClick ? "clickable" : ""} ${className}`} onClick={onClick} role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined}
+      onKeyDown={(e) => onClick && (e.key === "Enter" || e.key === " ") && (e.preventDefault(), onClick())}>
+      {children}
+    </div>
+  );
+}
+
+export function PageHeader({ title, description, actions }: { title: ReactNode; description?: ReactNode; actions?: ReactNode }) {
+  return (
+    <header className="mt-pagehead">
+      <div>
+        <h1 className="mt-h1">{title}</h1>
+        {description && <p>{description}</p>}
+      </div>
+      {actions && <div style={{ display: "flex", gap: 8 }}>{actions}</div>}
+    </header>
+  );
+}
+
+export function EmptyState({ icon, title, description, action }: { icon?: ReactNode; title: ReactNode; description?: ReactNode; action?: ReactNode }) {
+  return (
+    <div className="mt-empty">
+      {icon && <div className="mt-empty-icon">{icon}</div>}
+      <b>{title}</b>
+      {description && <p>{description}</p>}
+      {action}
+    </div>
+  );
+}
+
+/** Bảng "nhãn — giá trị" dễ đọc (ví dụ kết quả của tool thông tin video). */
+export function KeyValueTable({ items }: { items: { label: ReactNode; value: ReactNode }[] }) {
+  return (
+    <table className="mt-kv">
+      <tbody>
+        {items.map((it, i) => (
+          <tr key={i}><th scope="row">{it.label}</th><td>{it.value}</td></tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+export function Tabs<T extends string>({ value, tabs, onChange }: { value: T; tabs: { value: T; label: ReactNode }[]; onChange: (v: T) => void }) {
+  return (
+    <div className="mt-tabs" role="tablist">
+      {tabs.map((t) => (
+        <button key={t.value} role="tab" aria-selected={value === t.value} className={`mt-tab ${value === t.value ? "on" : ""}`} onClick={() => onChange(t.value)}>{t.label}</button>
+      ))}
+    </div>
+  );
+}
+
+/** Vùng chọn / kéo thả file. */
+export function Dropzone({ accept, label, hint, busy, onFile }: { accept?: string; label: ReactNode; hint?: ReactNode; busy?: boolean; onFile: (f: File) => void }) {
+  const ref = useRef<HTMLInputElement>(null);
+  const [over, setOver] = useState(false);
+  return (
+    <div className={`mt-drop ${over ? "over" : ""}`} role="button" tabIndex={0}
+      onClick={() => !busy && ref.current?.click()}
+      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && ref.current?.click()}
+      onDragOver={(e) => { e.preventDefault(); setOver(true); }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => { e.preventDefault(); setOver(false); const f = e.dataTransfer.files[0]; if (f) onFile(f); }}>
+      {busy ? <Loader2 size={26} className="mt-spin" /> : <Upload size={26} />}
+      <b>{busy ? "Đang tải lên…" : label}</b>
+      {hint && <span className="mt-hint">{hint}</span>}
+      <input ref={ref} type="file" hidden accept={accept} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onFile(f); }} />
+    </div>
+  );
 }

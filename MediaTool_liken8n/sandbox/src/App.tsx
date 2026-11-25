@@ -1,214 +1,205 @@
-// Sandbox: kiểm thử dùng chung. Tự liệt kê tool và mini app; không có code riêng cho tool nào.
-import { useCallback, useEffect, useMemo, useState } from "react";
+// Khung ứng dụng MediaTool: thanh bên + các trang. Không có code riêng cho tool nào (mọi thứ đọc từ registry).
+import { useCallback, useEffect, useState } from "react";
 import { marked } from "marked";
-import { Badge, Button, Notice } from "@mediatool/ui";
-import { MediaToolClient, type Job, type ToolDetail, type ToolSummary, type MiniAppEntry } from "@mediatool/api-client";
+import {
+  BookOpen, Clapperboard, FlaskConical, History as HistoryIcon, House, LayoutGrid, Moon, PanelLeftClose, PanelLeftOpen, Sun, Wrench, Workflow,
+} from "lucide-react";
+import { Badge, Button, Card, EmptyState, Notice, PageHeader } from "@mediatool/ui";
+import { MediaToolClient, type MiniAppEntry, type ToolDetail, type ToolSummary } from "@mediatool/api-client";
 import type { MiniAppDefinition } from "@mediatool/miniapp-sdk";
 import { Workspace } from "@mediatool/workspace";
+import { Editor } from "@mediatool/editor";
 import { localMiniApps, type LocalMiniApp } from "./miniapps";
 import { TestBench } from "./TestBench";
 import { ChainEditor } from "./ChainEditor";
-import { Editor } from "@mediatool/editor";
+import { Home } from "./pages/Home";
+import { Catalog } from "./pages/Catalog";
+import { ToolRunner } from "./pages/ToolRunner";
+import { History } from "./pages/History";
+import { categoryOf } from "./meta";
 
-type Tab = "editor" | "tools" | "bench" | "chain" | "miniapps" | "jobs";
-
-const TAB_LABEL: Record<Tab, string> = {
-  editor: "Editor",
-  tools: "Tools",
-  bench: "Kiểm thử",
-  chain: "Chuỗi tool",
-  miniapps: "Mini apps",
-  jobs: "Jobs",
-};
+export type Route =
+  | { page: "home" } | { page: "editor" } | { page: "tools" } | { page: "tool"; id: string } | { page: "chain" }
+  | { page: "apps" } | { page: "history" } | { page: "bench" } | { page: "devdocs" };
 
 const client = new MediaToolClient({ baseUrl: "" }); // Vite proxy /v1 → core
 
-function StatusBadge({ status }: { status: ToolSummary["status"] }) {
-  return status.state === "available" ? <Badge kind="ok">sẵn sàng</Badge> : <Badge kind="danger">không dùng được</Badge>;
+const NAV: { page: Route["page"]; label: string; icon: JSX.Element; dev?: boolean }[] = [
+  { page: "home", label: "Trang chủ", icon: <House size={18} /> },
+  { page: "editor", label: "Dựng video", icon: <Clapperboard size={18} /> },
+  { page: "tools", label: "Công cụ", icon: <Wrench size={18} /> },
+  { page: "chain", label: "Quy trình tự động", icon: <Workflow size={18} /> },
+  { page: "apps", label: "Ứng dụng", icon: <LayoutGrid size={18} /> },
+  { page: "history", label: "Lịch sử xử lý", icon: <HistoryIcon size={18} /> },
+  { page: "bench", label: "Kiểm thử tự động", icon: <FlaskConical size={18} />, dev: true },
+  { page: "devdocs", label: "Tài liệu kỹ thuật", icon: <BookOpen size={18} />, dev: true },
+];
+
+function readRoute(): Route {
+  const [page, id] = location.hash.replace(/^#\/?/, "").split("/");
+  if (page === "tool" && id) return { page: "tool", id };
+  return (NAV.some((n) => n.page === page) ? { page } : { page: "home" }) as Route;
 }
 
-// ------------------------------------------------------------------ Tools
-function ToolDetailView({ id, onRun }: { id: string; onRun: (t: ToolDetail) => void }) {
-  const [tool, setTool] = useState<ToolDetail | null>(null);
-  const [docs, setDocs] = useState<string>("");
-  const [err, setErr] = useState<string | null>(null);
-  useEffect(() => {
-    setTool(null);
-    setDocs("");
-    client.getTool(id).then(setTool).catch((e) => setErr(String(e.message ?? e)));
-    client.toolDocs(id).then((md) => setDocs(marked.parse(md) as string)).catch(() => setDocs("<p><i>Tool chưa có README.md</i></p>"));
-  }, [id]);
-  if (err) return <Notice kind="danger">{err}</Notice>;
-  if (!tool) return <div className="sb-dim">Đang tải…</div>;
-  return (
-    <div className="sb-detail">
-      <div className="sb-detail-head">
-        <div>
-          <h2>{tool.name} <code>{tool.id}</code></h2>
-          <div className="sb-dim">{tool.summary}</div>
-          <div className="sb-row">
-            <StatusBadge status={tool.status} />
-            <Badge>v{tool.version}</Badge>
-            <Badge>{tool.tool_status}</Badge>
-            {tool.runtime && <Badge>RAM {tool.runtime.ram_mb} MB</Badge>}
-            {tool.runtime?.heavy && <Badge kind="warn">heavy</Badge>}
-          </div>
-        </div>
-        <Button primary disabled={tool.status.state !== "available"} onClick={() => onRun(tool)}>Chạy thử trong workspace →</Button>
-      </div>
-      {tool.status.state === "unavailable" && <Notice kind="danger">{tool.status.reason}</Notice>}
-      <article className="sb-docs" dangerouslySetInnerHTML={{ __html: docs }} />
-    </div>
-  );
-}
-
-function ToolsTab({ onRun }: { onRun: (t: ToolDetail) => void }) {
-  const [tools, setTools] = useState<ToolSummary[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [q, setQ] = useState("");
-  const [err, setErr] = useState<string | null>(null);
-  const load = useCallback(() => {
-    client.listTools().then((t) => {
-      setTools(t);
-      setErr(null);
-      setSelected((s) => s ?? t[0]?.id ?? null);
-    }).catch((e) => setErr(`Không kết nối được core: ${e.message}`));
-  }, []);
-  useEffect(load, [load]);
-  const groups = useMemo(() => {
-    const m = new Map<string, ToolSummary[]>();
-    tools
-      .filter((t) => !q || (t.id + t.name + t.summary).toLowerCase().includes(q.toLowerCase()))
-      .forEach((t) => m.set(t.category, [...(m.get(t.category) ?? []), t]));
-    return [...m.entries()];
-  }, [tools, q]);
-  return (
-    <div className="sb-split">
-      <nav className="sb-list">
-        <div className="sb-row">
-          <input className="mt-input" placeholder="Tìm tool…" value={q} onChange={(e) => setQ(e.target.value)} />
-          <Button small onClick={async () => { await client.reloadRegistry(); load(); }} title="Quét lại thư mục tools/">↻</Button>
-        </div>
-        {err && <Notice kind="danger">{err}</Notice>}
-        {groups.map(([cat, items]) => (
-          <div key={cat}>
-            <div className="sb-cat">{cat}</div>
-            {items.map((t) => (
-              <button key={t.id} className={`sb-item ${selected === t.id ? "on" : ""}`} onClick={() => setSelected(t.id)}>
-                <span>{t.name}</span>
-                <span className="sb-row"><code>{t.id}</code><StatusBadge status={t.status} /></span>
-              </button>
-            ))}
-          </div>
-        ))}
-      </nav>
-      <section className="sb-main">{selected ? <ToolDetailView id={selected} onRun={onRun} /> : <div className="sb-dim">Chọn một tool</div>}</section>
-    </div>
-  );
-}
-
-// ------------------------------------------------------------------ Mini apps
-function MiniAppsTab({ onOpen }: { onOpen: (m: LocalMiniApp) => void }) {
+// ------------------------------------------------------------------ ứng dụng nhỏ
+function AppsPage({ onOpen }: { onOpen: (m: LocalMiniApp) => void }) {
   const [remote, setRemote] = useState<MiniAppEntry[]>([]);
   useEffect(() => {
     client.listMiniApps().then(setRemote).catch(() => setRemote([]));
   }, []);
   return (
-    <div className="sb-cards">
-      {localMiniApps.map((m) => {
-        const r = remote.find((x) => x.name === m.name);
-        return (
-          <div key={m.name} className="sb-card">
-            <h3>{m.manifest.title}</h3>
-            <div className="sb-dim">{m.manifest.description}</div>
-            <div className="sb-row">
-              <Badge>{m.manifest.category}</Badge>
-              {r ? (r.status.state === "available" ? <Badge kind="ok">đủ tool</Badge> : <Badge kind="danger">{r.status.reason}</Badge>) : <Badge kind="warn">core chưa thấy</Badge>}
-            </div>
-            <div className="sb-dim">Tool: {m.manifest.tools.join(", ")}</div>
-            <Button primary onClick={() => onOpen(m)}>Mở</Button>
-          </div>
-        );
-      })}
-      {!localMiniApps.length && <div className="sb-dim">Chưa có mini app trong thư mục miniapps/</div>}
+    <div className="sb-page">
+      <PageHeader title="Ứng dụng" description="Các tính năng trọn gói: chọn file một lần, ứng dụng tự chạy các công cụ cần thiết." />
+      <div className="cat-grid">
+        {localMiniApps.map((m) => {
+          const r = remote.find((x) => x.name === m.name);
+          const ok = !r || r.status.state === "available";
+          return (
+            <Card key={m.name} className="cat-card" onClick={ok ? () => onOpen(m) : undefined}>
+              <div className="cat-card-head">
+                <div className="cat-icon">{categoryOf(m.manifest.category).icon(20)}</div>
+                {!ok && <Badge kind="danger">Thiếu công cụ</Badge>}
+              </div>
+              <h3 className="mt-h3">{m.manifest.title}</h3>
+              <p className="mt-dim">{m.manifest.description}</p>
+            </Card>
+          );
+        })}
+      </div>
+      {!localMiniApps.length && <EmptyState title="Chưa có ứng dụng nào" />}
     </div>
   );
 }
 
-// ------------------------------------------------------------------ Jobs
-function JobsTab() {
-  const [jobs, setJobs] = useState<Job[]>([]);
+// ------------------------------------------------------------------ tài liệu kỹ thuật (cho nhà phát triển)
+function DevDocs({ onWorkspace }: { onWorkspace: (t: ToolDetail) => void }) {
+  const [tools, setTools] = useState<ToolSummary[]>([]);
+  const [sel, setSel] = useState<string | null>(null);
+  const [tool, setTool] = useState<ToolDetail | null>(null);
+  const [docs, setDocs] = useState("");
+  const load = useCallback(() => client.listTools().then((t) => { setTools(t); setSel((s) => s ?? t[0]?.id ?? null); }).catch(() => undefined), []);
+  useEffect(() => { void load(); }, [load]);
   useEffect(() => {
-    const load = () => client.listJobs().then(setJobs).catch(() => undefined);
-    load();
-    const t = setInterval(load, 3000);
-    return () => clearInterval(t);
-  }, []);
+    if (!sel) return;
+    client.getTool(sel).then(setTool).catch(() => setTool(null));
+    client.toolDocs(sel).then((md) => setDocs(marked.parse(md) as string)).catch(() => setDocs(""));
+  }, [sel]);
   return (
-    <table className="sb-table">
-      <thead><tr><th>Job</th><th>Tool</th><th>Trạng thái</th><th>Kết quả</th><th>RAM đỉnh</th><th>Tạo lúc</th></tr></thead>
-      <tbody>
-        {jobs.map((j) => (
-          <tr key={j.id}>
-            <td><code>{j.id}</code></td>
-            <td>{j.tool_id}</td>
-            <td><Badge kind={j.status === "succeeded" ? "ok" : j.status === "failed" ? "danger" : "accent"}>{j.status}</Badge></td>
-            <td>{j.result?.summary ?? j.error?.message ?? j.message}</td>
-            <td>{j.result?.peak_ram_mb != null ? `${j.result.peak_ram_mb} MB` : ""}</td>
-            <td className="sb-dim">{new Date(j.created_at).toLocaleString("vi-VN")}</td>
-          </tr>
+    <div className="dev-split">
+      <nav className="dev-list">
+        <div className="dev-list-head">
+          <b>Tool trong registry</b>
+          <Button small ghost onClick={async () => { await client.reloadRegistry(); void load(); }}>Quét lại</Button>
+        </div>
+        {tools.map((t) => (
+          <button key={t.id} className={`dev-item ${sel === t.id ? "on" : ""}`} onClick={() => setSel(t.id)}>
+            <span>{t.name}</span>
+            <code>{t.id}</code>
+            {t.status.state !== "available" && <Badge kind="danger">lỗi</Badge>}
+          </button>
         ))}
-      </tbody>
-    </table>
+      </nav>
+      <section className="dev-main">
+        {tool && (
+          <>
+            <div className="dev-head">
+              <div>
+                <h1 className="mt-h1">{tool.name}</h1>
+                <div className="dev-badges">
+                  <code>{tool.id}</code><Badge>v{tool.version}</Badge><Badge>{tool.tool_status}</Badge>
+                  {tool.runtime && <Badge>RAM {tool.runtime.ram_mb} MB</Badge>}
+                  {tool.runtime?.heavy && <Badge kind="warn">heavy</Badge>}
+                </div>
+              </div>
+              <Button onClick={() => onWorkspace(tool)} disabled={tool.status.state !== "available"}>Mở trong workspace</Button>
+            </div>
+            {tool.status.state === "unavailable" && <Notice kind="danger">{tool.status.reason}</Notice>}
+            <article className="sb-docs" dangerouslySetInnerHTML={{ __html: docs }} />
+          </>
+        )}
+      </section>
+    </div>
   );
 }
 
-// ------------------------------------------------------------------ App
+// ------------------------------------------------------------------ khung
 export function App() {
-  const [tab, setTab] = useState<Tab>("tools");
-  const [health, setHealth] = useState<string>("đang kết nối…");
-  const [runTool, setRunTool] = useState<ToolDetail | null>(null);
+  const [route, setRoute] = useState<Route>(readRoute);
+  const [online, setOnline] = useState<boolean | null>(null);
+  const [collapsed, setCollapsed] = useState(() => window.innerWidth < 1100);
+  const [theme, setTheme] = useState<"dark" | "light">(() => (localStorage.getItem("mediatool.theme") as "light") ?? "dark");
+  const [workspaceTool, setWorkspaceTool] = useState<ToolDetail | null>(null);
   const [openApp, setOpenApp] = useState<{ meta: LocalMiniApp; def: MiniAppDefinition } | null>(null);
-  const [openErr, setOpenErr] = useState<string | null>(null);
 
   useEffect(() => {
-    client.health().then((h) => setHealth(`core v${h.version}`)).catch(() => setHealth("không kết nối được core"));
+    document.documentElement.dataset.theme = theme;
+    try { localStorage.setItem("mediatool.theme", theme); } catch { /* bỏ qua */ }
+  }, [theme]);
+  useEffect(() => {
+    const ping = () => client.health().then(() => setOnline(true)).catch(() => setOnline(false));
+    ping();
+    const t = setInterval(ping, 10000);
+    const onHash = () => setRoute(readRoute());
+    window.addEventListener("hashchange", onHash);
+    return () => { clearInterval(t); window.removeEventListener("hashchange", onHash); };
   }, []);
 
-  if (runTool) return <Workspace client={client} tool={runTool} onExit={() => setRunTool(null)} />;
-  if (openApp)
-    return <Workspace client={client} manifest={openApp.meta.manifest} app={openApp.def} strings={openApp.meta.strings} onExit={() => setOpenApp(null)} />;
+  const go = useCallback((r: Route) => {
+    location.hash = r.page === "tool" ? `/tool/${r.id}` : `/${r.page}`;
+    setRoute(r);
+  }, []);
+  const active = route.page === "tool" ? "tools" : route.page;
+
+  if (workspaceTool) return <Workspace client={client} tool={workspaceTool} onExit={() => setWorkspaceTool(null)} />;
+  if (openApp) return <Workspace client={client} manifest={openApp.meta.manifest} app={openApp.def} strings={openApp.meta.strings} onExit={() => setOpenApp(null)} />;
 
   return (
-    <div className="sb-root">
-      <header className="sb-top">
-        <b>MediaTool Sandbox</b>
-        {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
-          <button key={t} className={`sb-tab ${tab === t ? "on" : ""}`} onClick={() => setTab(t)}>
-            {TAB_LABEL[t]}
+    <div className={`shell ${collapsed ? "collapsed" : ""}`}>
+      <aside className="side">
+        <div className="side-brand">
+          <div className="side-logo"><Clapperboard size={18} /></div>
+          {!collapsed && <span>MediaTool</span>}
+          <button className="mt-iconbtn small side-collapse" aria-label={collapsed ? "Mở rộng thanh bên" : "Thu gọn thanh bên"} title={collapsed ? "Mở rộng" : "Thu gọn"} onClick={() => setCollapsed(!collapsed)}>
+            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
           </button>
-        ))}
-        <span className="sb-grow" />
-        <span className="sb-dim">{health}</span>
-      </header>
-      {openErr && <Notice kind="danger">{openErr}</Notice>}
-      <div className="sb-body">
-        {tab === "tools" && <ToolsTab onRun={setRunTool} />}
-        {tab === "miniapps" && (
-          <MiniAppsTab onOpen={async (m) => {
-            try {
-              setOpenErr(null);
-              setOpenApp({ meta: m, def: await m.load() });
-            } catch (e) {
-              setOpenErr(`Không nạp được mini app ${m.name}: ${(e as Error).message}`);
-            }
-          }} />
+        </div>
+        <nav className="side-nav">
+          {NAV.filter((n) => !n.dev).map((n) => (
+            <button key={n.page} className={`side-item ${active === n.page ? "on" : ""}`} onClick={() => go({ page: n.page } as Route)} title={collapsed ? n.label : undefined} aria-current={active === n.page ? "page" : undefined}>
+              {n.icon}{!collapsed && <span>{n.label}</span>}
+            </button>
+          ))}
+          <div className="side-sep">{!collapsed && "Nhà phát triển"}</div>
+          {NAV.filter((n) => n.dev).map((n) => (
+            <button key={n.page} className={`side-item ${active === n.page ? "on" : ""}`} onClick={() => go({ page: n.page } as Route)} title={collapsed ? n.label : undefined}>
+              {n.icon}{!collapsed && <span>{n.label}</span>}
+            </button>
+          ))}
+        </nav>
+        <div className="side-foot">
+          <span className={`side-status ${online ? "on" : online === false ? "off" : ""}`} title={online ? "Máy chủ đang chạy" : "Không kết nối được máy chủ"}>
+            <i />{!collapsed && (online ? "Máy chủ đang chạy" : online === false ? "Mất kết nối máy chủ" : "Đang kết nối…")}
+          </span>
+          <button className="mt-iconbtn small" aria-label="Đổi giao diện sáng/tối" title="Đổi giao diện sáng/tối" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+            {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+        </div>
+      </aside>
+
+      <main className={`main ${route.page === "editor" || route.page === "chain" || route.page === "devdocs" ? "full" : ""}`}>
+        {online === false && route.page !== "editor" && (
+          <div className="main-banner"><Notice kind="danger">Không kết nối được máy chủ MediaTool. Hãy chạy <code>docker compose up -d core</code> rồi tải lại trang.</Notice></div>
         )}
-        {tab === "jobs" && <JobsTab />}
-        {tab === "bench" && <TestBench client={client} />}
-        {tab === "editor" && <Editor client={client} />}
-        {tab === "chain" && <ChainEditor client={client} />}
-      </div>
+        {route.page === "home" && <Home client={client} go={go} />}
+        {route.page === "editor" && <Editor client={client} />}
+        {route.page === "tools" && <Catalog client={client} go={go} />}
+        {route.page === "tool" && <ToolRunner key={route.id} client={client} toolId={route.id} onBack={() => go({ page: "tools" })} />}
+        {route.page === "chain" && <ChainEditor client={client} />}
+        {route.page === "apps" && <AppsPage onOpen={async (m) => setOpenApp({ meta: m, def: await m.load() })} />}
+        {route.page === "history" && <History client={client} />}
+        {route.page === "bench" && <div className="sb-page wide"><PageHeader title="Kiểm thử tự động" description="Chạy tất cả ví dụ của mọi công cụ, đo thời gian và RAM, so với khai báo." /><TestBench client={client} /></div>}
+        {route.page === "devdocs" && <DevDocs onWorkspace={setWorkspaceTool} />}
+      </main>
     </div>
   );
 }

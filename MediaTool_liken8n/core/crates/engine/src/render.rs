@@ -1,17 +1,20 @@
-//! Ghép khung hình bằng Skia (CPU raster): video/ảnh/chữ/hình, biến đổi, độ rõ, blur, color matrix.
-//! Chữ dàn trang bằng Skia Paragraph (HarfBuzz + ICU) → dấu tiếng Việt luôn đúng.
+//! Ghép khung hình bằng Skia (CPU raster): video/ảnh/chữ/hình, biến đổi, độ rõ, blur, color matrix, bóng, viền.
+//! Mọi lớp đi qua CÙNG một đường: nội dung → (màu, mờ, bóng, viền điểm ảnh) bằng chuỗi ImageFilter → mask → blend.
 
-use crate::anim::{state_at, State};
+use crate::anim::{interp, state_at, State, CORE_PROPS};
 use crate::media::{fit_within, VideoSource};
-use crate::model::{parse_color, Composition, Layer, LayerKind, TextStyle};
+use crate::model::{format_color, parse_color, Composition, Fill, FillSpec, Layer, LayerKind};
+use crate::style::{color, fill_paint, layer_filter, stroke_paint};
+use crate::text::TextRenderer;
 use anyhow::{anyhow, Result};
 use serde::Serialize;
-use skia_safe::textlayout::{FontCollection, ParagraphBuilder, ParagraphStyle, TextAlign, TextShadow, TextStyle as SkTextStyle};
+use serde_json::Value;
+use skia_safe::textlayout::FontCollection;
 use skia_safe::{
-    canvas::SaveLayerRec, color_filters, gradient_shader, image_filters, paint, surfaces, AlphaType, BlurStyle, Canvas, Color,
-    ColorMatrix, ColorType, Data, EncodedImageFormat, FontMgr, FontStyle, Image, ImageInfo, MaskFilter, Paint, PathBuilder,
-    Point, RRect, Rect, Surface, TileMode,
+    canvas::SaveLayerRec, color_filters, image_filters, surfaces, AlphaType, BlurStyle, Canvas, Color, ColorMatrix, ColorType, Data,
+    EncodedImageFormat, FontMgr, Image, ImageInfo, MaskFilter, Paint, PathBuilder, Point, RRect, Rect, Surface, TileMode,
 };
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize)]
@@ -41,14 +44,98 @@ pub struct Renderer {
 // Renderer chỉ được dùng trên một luồng (luồng render riêng của core / tiến trình CLI).
 unsafe impl Send for Renderer {}
 
-fn color(s: &str) -> Color {
-    let (r, g, b, a) = parse_color(s);
-    Color::from_argb(a, r, g, b)
-}
-
 impl Default for Renderer {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Áp keyframe theo đường dẫn bất kỳ ("style.size", "effects.0.amount", "strokes.1.color"…) tại thời điểm t.
+/// Thuộc tính biến đổi (x, y, scale, rotation, opacity) do `anim::state_at` tính thẳng nên bỏ qua ở đây.
+fn at_time(l: &Layer, t: f64) -> Cow<'_, Layer> {
+    let extra: Vec<(&String, &Vec<crate::model::Keyframe>)> =
+        l.keyframes.iter().filter(|(k, v)| !CORE_PROPS.contains(&k.as_str()) && !v.is_empty()).collect();
+    if extra.is_empty() {
+        return Cow::Borrowed(l);
+    }
+    let Ok(mut v) = serde_json::to_value(l) else { return Cow::Borrowed(l) };
+    for (path, kfs) in extra {
+        if let Some((a, b, e)) = interp(kfs, t - l.start) {
+            set_path(&mut v, path, mix(&a.value, &b.value, e));
+        }
+    }
+    match serde_json::from_value::<Layer>(v) {
+        Ok(mut nl) => {
+            // các khoảng thời gian đã giải không đi qua JSON → chép lại
+            for (x, y) in nl.animations.iter_mut().zip(&l.animations) {
+                x.windows = y.windows.clone();
+                x.kind = y.kind.clone();
+            }
+            for (x, y) in nl.effects.iter_mut().zip(&l.effects) {
+                x.window = y.window;
+            }
+            if let (LayerKind::Text { spans: a, .. }, LayerKind::Text { spans: b, .. }) = (&mut nl.kind, &l.kind) {
+                for (x, y) in a.iter_mut().zip(b) {
+                    x.window = y.window;
+                }
+            }
+            Cow::Owned(nl)
+        }
+        Err(_) => Cow::Borrowed(l),
+    }
+}
+
+fn mix(a: &Value, b: &Value, e: f64) -> Value {
+    match (a, b) {
+        (Value::Number(x), Value::Number(y)) => {
+            let (x, y) = (x.as_f64().unwrap_or(0.0), y.as_f64().unwrap_or(0.0));
+            Value::from(x + (y - x) * e)
+        }
+        (Value::String(x), Value::String(y)) if x.starts_with('#') && y.starts_with('#') => {
+            let (p, q) = (parse_color(x), parse_color(y));
+            let l = |u: u8, v: u8| (u as f64 + (v as f64 - u as f64) * e.clamp(0.0, 1.0)).round() as u8;
+            Value::from(format_color((l(p.0, q.0), l(p.1, q.1), l(p.2, q.2), l(p.3, q.3))))
+        }
+        _ => if e < 1.0 { a.clone() } else { b.clone() },
+    }
+}
+
+fn set_path(v: &mut Value, path: &str, val: Value) {
+    let norm = path.replace('[', ".").replace(']', "");
+    let mut cur = v;
+    let parts: Vec<&str> = norm.split('.').filter(|s| !s.is_empty()).collect();
+    for (i, key) in parts.iter().enumerate() {
+        let last = i + 1 == parts.len();
+        let next = match cur {
+            Value::Array(arr) => match key.parse::<usize>().ok().and_then(|k| arr.get_mut(k)) {
+                Some(x) => x,
+                None => return,
+            },
+            Value::Object(map) => {
+                if last {
+                    map.insert(key.to_string(), val);
+                    return;
+                }
+                map.entry(key.to_string()).or_insert(Value::Object(Default::default()))
+            }
+            _ => return,
+        };
+        if last {
+            *next = val;
+            return;
+        }
+        cur = next;
+    }
+}
+
+/// Độ mạnh của hiệu ứng tại t: 0 ngoài khoảng áp dụng, tăng/giảm dần trong `ramp` giây ở hai đầu.
+fn effect_weight(e: &crate::model::Effect, t: f64) -> f64 {
+    match e.window {
+        None => 1.0,
+        Some((a, b)) if t < a || t >= b => 0.0,
+        Some((a, b)) => {
+            if e.ramp > 0.0 { ((t - a) / e.ramp).min((b - t) / e.ramp).clamp(0.0, 1.0) } else { 1.0 }
+        }
     }
 }
 
@@ -62,20 +149,50 @@ impl Renderer {
 
     /// Bỏ decoder/ảnh không còn dùng (gọi sau mỗi lần đổi composition để giải phóng RAM).
     pub fn retain_sources(&mut self, comp: &Composition) {
-        let used: std::collections::HashSet<&str> = comp
-            .layers
-            .iter()
-            .filter_map(|l| match &l.kind {
-                LayerKind::Video { source, .. } | LayerKind::Image { source, .. } => Some(source.as_str()),
-                _ => None,
-            })
-            .collect();
-        self.videos.retain(|k, _| used.contains(k.as_str()));
-        self.images.retain(|k, _| used.contains(k.as_str()));
+        let mut used = std::collections::HashSet::new();
+        let mut c = comp.clone();
+        let _ = c.resolve_sources(|s| {
+            used.insert(s.to_string());
+            Some(s.to_string())
+        });
+        self.videos.retain(|k, _| used.contains(k));
+        self.images.retain(|k, _| used.contains(k));
+    }
+
+    fn ensure_image(&mut self, source: &str) -> Result<()> {
+        if !self.images.contains_key(source) {
+            let bytes = std::fs::read(source).map_err(|e| anyhow!("Không đọc được ảnh '{source}': {e}"))?;
+            let img = Image::from_encoded(Data::new_copy(&bytes)).ok_or_else(|| anyhow!("Skia không giải mã được ảnh '{source}'"))?;
+            self.images.insert(source.to_string(), img);
+        }
+        Ok(())
+    }
+
+    /// Nạp sẵn ảnh dùng để tô màu (chữ/hình/viền tô bằng ảnh).
+    fn preload_fills(&mut self, l: &Layer) -> Result<()> {
+        let mut fills: Vec<Fill> = l.strokes.iter().map(|s| s.fill()).collect();
+        match &l.kind {
+            LayerKind::Text { style, .. } => fills.push(style.fill()),
+            LayerKind::Shape { fill, .. } => fills.push(fill.clone()),
+            _ => {}
+        }
+        for f in fills {
+            if let Fill::Spec(FillSpec::Image { source, .. }) = f {
+                self.ensure_image(&source)?;
+            }
+        }
+        Ok(())
     }
 
     /// Render khung tại `t` (giây). `out_w`: độ rộng ảnh ra (chiều cao theo tỉ lệ khung).
     pub fn render(&mut self, comp: &Composition, t: f64, out_w: u32) -> Result<Rendered> {
+        let prepared;
+        let comp = if comp.prepared {
+            comp
+        } else {
+            prepared = comp.prepare();
+            &prepared
+        };
         let cw = comp.canvas.width as f32;
         let ch = comp.canvas.height as f32;
         let out_w = out_w.clamp(16, comp.canvas.width.max(16));
@@ -91,12 +208,14 @@ impl Renderer {
                 if matches!(layer.kind, LayerKind::Audio { .. }) || !layer.active_at(t) {
                     continue;
                 }
-                let st = state_at(layer, t);
+                let layer = at_time(layer, t);
+                let st = state_at(&layer, t);
                 if st.opacity <= 0.001 {
                     continue;
                 }
-                if let Some((w, h)) = self.draw_layer(canvas, comp, layer, &st, t, s)? {
-                    let (bw, bh) = (w as f64 * st.scale / cw as f64, h as f64 * st.scale / ch as f64);
+                self.preload_fills(&layer)?;
+                if let Some((w, h)) = self.draw_layer(canvas, comp, &layer, &st, t, s)? {
+                    let (bw, bh) = (w as f64 * st.scale * st.sx / cw as f64, h as f64 * st.scale * st.sy / ch as f64);
                     bounds.push(Bounds { id: layer.id.clone(), x: st.x - bw / 2.0, y: st.y - bh / 2.0, w: bw, h: bh, rotation: st.rotation });
                 }
             }
@@ -120,8 +239,9 @@ impl Renderer {
                 }
                 let v = self.videos.get_mut(source).unwrap();
                 let (bw, bh) = fit_box(v.width as f32 * keep_w, v.height as f32 * keep_h, cw, ch, fit);
-                let mut need_w = (bw * s * st.scale as f32 / keep_w).ceil() as u32;
-                let mut need_h = (bh * s * st.scale as f32 / keep_h).ceil() as u32;
+                let sc = (st.scale * st.sx.max(st.sy)) as f32;
+                let mut need_w = (bw * s * sc / keep_w).ceil() as u32;
+                let mut need_h = (bh * s * sc / keep_h).ceil() as u32;
                 if l.background_fill.as_deref() == Some("blur") {
                     need_w = need_w.max((cw * s * 0.25) as u32);
                     need_h = need_h.max((ch * s * 0.25) as u32);
@@ -132,11 +252,7 @@ impl Renderer {
                 Some(skia_safe::images::raster_from_data(&info, Data::new_copy(&f.data), f.stride).ok_or_else(|| anyhow!("Không tạo được ảnh từ khung"))?)
             }
             LayerKind::Image { source, .. } => {
-                if !self.images.contains_key(source) {
-                    let bytes = std::fs::read(source).map_err(|e| anyhow!("Không đọc được ảnh '{source}': {e}"))?;
-                    let img = Image::from_encoded(Data::new_copy(&bytes)).ok_or_else(|| anyhow!("Skia không giải mã được ảnh '{source}'"))?;
-                    self.images.insert(source.clone(), img);
-                }
+                self.ensure_image(source)?;
                 Some(self.images.get(source).unwrap().clone())
             }
             _ => None,
@@ -177,16 +293,37 @@ impl Renderer {
             canvas.restore();
         }
 
-        // Lớp tạm: độ rõ + blur + màu + blend mode
+        let tr = TextRenderer { fonts: &self.fonts, images: &self.images, cw, ch };
+        // kích thước nội dung (để clip wipe / mask / khung bao)
+        let content = match (&l.kind, &src_rect) {
+            (LayerKind::Video { .. } | LayerKind::Image { .. }, Some(sr)) => {
+                let (bw, bh) = fit_box(sr.width(), sr.height(), cw, ch, fit);
+                if fit == "cover" { (bw.min(cw), bh.min(ch)) } else { (bw, bh) }
+            }
+            (LayerKind::Shape { w, h, .. }, _) => (*w as f32 * cw, *h as f32 * ch),
+            (LayerKind::Text { text, style, spans }, _) => tr.measure(l, text, style, spans, t),
+            _ => (cw, ch),
+        };
+        let content_rect = Rect::from_xywh(-content.0 / 2.0, -content.1 / 2.0, content.0, content.1);
+
+        // Chuỗi filter của lớp: màu → mờ → bóng/viền điểm ảnh (giống nhau cho mọi loại lớp)
+        let amount = |k: &str| l.effects.iter().filter(|e| e.kind == k).map(|e| e.amount * effect_weight(e, t)).sum::<f64>() as f32;
+        let mut filter = effect_matrix(&amount, st.hue as f32).and_then(|m| image_filters::color_filter(color_filters::matrix(&m, None), None, None));
+        let blur = amount("blur") as f64 * 0.4 + st.blur;
+        if blur > 0.05 {
+            let sigma = (blur * ch as f64 / 1080.0) as f32;
+            filter = image_filters::blur((sigma, sigma), TileMode::Decal, filter, None);
+        }
+        let raster_strokes: &[crate::model::Stroke] = match l.kind {
+            LayerKind::Video { .. } | LayerKind::Image { .. } => &l.strokes,
+            _ => &[],
+        };
+        filter = layer_filter(filter, &l.shadows, raster_strokes, ch / 1080.0, st.rotation as f32, content_rect, &self.images);
+
         let mut lp = Paint::default();
         lp.set_alpha_f(st.opacity as f32);
-        let blur = l.effects.iter().filter(|e| e.kind == "blur").map(|e| e.amount).sum::<f64>() * 0.4 + st.blur;
-        if blur > 0.05 {
-            let sigma = blur as f32;
-            lp.set_image_filter(image_filters::blur((sigma, sigma), TileMode::Decal, None, None));
-        }
-        if let Some(m) = effect_matrix(l) {
-            lp.set_color_filter(color_filters::matrix(&m, None));
+        if let Some(f) = filter {
+            lp.set_image_filter(f);
         }
         if let Some(b) = l.blend.as_deref().and_then(blend_mode) {
             lp.set_blend_mode(b);
@@ -194,19 +331,9 @@ impl Renderer {
         canvas.save();
         canvas.translate((st.x as f32 * cw, st.y as f32 * ch));
         canvas.rotate(st.rotation as f32, None);
-        canvas.scale((st.scale as f32, st.scale as f32));
+        canvas.scale(((st.scale * st.sx) as f32, (st.scale * st.sy) as f32));
         canvas.save_layer(&SaveLayerRec::default().paint(&lp));
 
-        // kích thước nội dung để clip wipe / mask
-        let content = match (&l.kind, &src_rect) {
-            (LayerKind::Video { .. } | LayerKind::Image { .. }, Some(sr)) => {
-                let (bw, bh) = fit_box(sr.width(), sr.height(), cw, ch, fit);
-                if fit == "cover" { (bw.min(cw), bh.min(ch)) } else { (bw, bh) }
-            }
-            (LayerKind::Shape { w, h, .. }, _) => (*w as f32 * cw, *h as f32 * ch),
-            (LayerKind::Text { text, style }, _) => self.measure_text(text, style, cw, ch),
-            _ => (cw, ch),
-        };
         if let Some((kind, p)) = st.wipe {
             clip_wipe(canvas, kind, p as f32, content.0, content.1);
         }
@@ -226,18 +353,16 @@ impl Renderer {
                     Rect::from_xywh(-bw / 2.0, -bh / 2.0, bw, bh), sampling(), &Paint::default());
                 Some(content)
             }
-            LayerKind::Text { text, style } => Some(self.draw_text(canvas, text, style, st.reveal, cw, ch)),
-            LayerKind::Shape { shape, w, h, fill, stroke, corner_radius } => {
+            LayerKind::Text { text, style, spans } => Some(tr.draw(canvas, l, text, style, spans, t)),
+            LayerKind::Shape { shape, w, h, fill, corner_radius, .. } => {
                 let (w, h) = (*w as f32 * cw, *h as f32 * ch);
                 let r = Rect::from_xywh(-w / 2.0, -h / 2.0, w, h);
-                let mut p = Paint::default();
-                p.set_anti_alias(true).set_color(color(fill));
-                draw_shape(canvas, shape, r, *corner_radius as f32, &p);
-                if let Some(sk) = stroke {
-                    let mut sp = Paint::default();
-                    sp.set_anti_alias(true).set_style(paint::Style::Stroke).set_stroke_width(sk.width as f32).set_color(color(&sk.color));
-                    draw_shape(canvas, shape, r, *corner_radius as f32, &sp);
+                let rad = *corner_radius as f32;
+                // viền vector: lớp ngoài cùng vẽ trước
+                for sk in l.strokes.iter().rev() {
+                    draw_shape(canvas, shape, r, rad, &stroke_paint(sk, sk.width as f32 * ch / 1080.0, r, &self.images));
                 }
+                draw_shape(canvas, shape, r, rad, &fill_paint(fill, r, &self.images));
                 Some((w, h))
             }
             LayerKind::Audio { .. } => None,
@@ -258,108 +383,6 @@ impl Renderer {
         canvas.restore(); // biến đổi
         Ok(size)
     }
-
-    fn measure_text(&self, text: &str, st: &TextStyle, cw: f32, ch: f32) -> (f32, f32) {
-        let px = (st.size as f32) * ch / 1080.0;
-        let p = self.paragraph(&shape_text(text, st), st, px, None, false, (st.max_width.clamp(0.05, 1.0) as f32) * cw);
-        (p.longest_line().ceil().max(1.0), p.height().ceil().max(1.0))
-    }
-
-    fn paragraph(&self, text: &str, st: &TextStyle, px: f32, fg: Option<&Paint>, shadow: bool, width: f32) -> skia_safe::textlayout::Paragraph {
-        let mut ps = ParagraphStyle::new();
-        ps.set_text_align(match st.align.as_str() {
-            "left" => TextAlign::Left,
-            "right" => TextAlign::Right,
-            _ => TextAlign::Center,
-        });
-        let mut ts = SkTextStyle::new();
-        ts.set_font_families(&[st.font.as_str(), "Noto Sans"]);
-        ts.set_font_size(px);
-        let slant = if st.italic { skia_safe::font_style::Slant::Italic } else { skia_safe::font_style::Slant::Upright };
-        ts.set_font_style(FontStyle::new((st.weight.round() as i32).into(), skia_safe::font_style::Width::NORMAL, slant));
-        if st.line_height > 0.0 {
-            ts.set_height_override(true);
-            ts.set_height(st.line_height as f32);
-        }
-        ts.set_letter_spacing(st.letter_spacing as f32 * px / 96.0);
-        match fg {
-            Some(p) => {
-                ts.set_foreground_paint(p);
-            }
-            None => {
-                ts.set_color(color(&st.color));
-            }
-        }
-        if shadow {
-            if let Some(sh) = &st.shadow {
-                let k = px as f64 / 96.0;
-                ts.add_shadow(TextShadow::new(color(&sh.color), (sh.x as f32 * k as f32, sh.y as f32 * k as f32), sh.blur * k / 2.0));
-            }
-        }
-        let mut b = ParagraphBuilder::new(&ps, self.fonts.clone());
-        b.push_style(&ts);
-        b.add_text(text);
-        let mut p = b.build();
-        p.layout(width);
-        p
-    }
-
-    /// Chữ nghệ thuật: hộp nền → phát sáng → viền → ruột (màu/gradient) + bóng. Trả kích thước nội dung.
-    fn draw_text(&self, canvas: &Canvas, text: &str, st: &TextStyle, reveal: f64, cw: f32, ch: f32) -> (f32, f32) {
-        let text = &shape_text(text, st);
-        let shown: String = if reveal < 1.0 {
-            let n = text.chars().count();
-            text.chars().take(((n as f64) * reveal).ceil() as usize).collect()
-        } else {
-            text.to_string()
-        };
-        let px = (st.size as f32) * ch / 1080.0;
-        let max_w = (st.max_width.clamp(0.05, 1.0) as f32) * cw;
-        // đo trên toàn bộ chữ để khung không nhảy khi typewriter
-        let measure = self.paragraph(text, st, px, None, false, max_w);
-        let w = measure.longest_line().ceil().max(1.0);
-        let h = measure.height().ceil().max(1.0);
-        let origin = Point::new(-w / 2.0, -h / 2.0);
-        let layout_w = w + 1.0;
-
-        if let Some(bg) = &st.background {
-            let pad = bg.padding as f32 * px;
-            let mut p = Paint::default();
-            p.set_anti_alias(true).set_color(color(&bg.color));
-            let r = Rect::from_xywh(-w / 2.0 - pad, -h / 2.0 - pad * 0.6, w + pad * 2.0, h + pad * 1.2);
-            canvas.draw_rrect(RRect::new_rect_xy(r, bg.radius as f32, bg.radius as f32), &p);
-        }
-        if let Some(g) = &st.glow {
-            let mut p = Paint::default();
-            p.set_anti_alias(true).set_color(color(&g.color));
-            p.set_mask_filter(MaskFilter::blur(BlurStyle::Normal, (g.radius as f32 * px / 96.0).max(0.5), false));
-            for _ in 0..2 {
-                self.paragraph(&shown, st, px, Some(&p), false, layout_w).paint(canvas, origin);
-            }
-        }
-        if let Some(sk) = &st.stroke {
-            let mut p = Paint::default();
-            p.set_anti_alias(true).set_style(paint::Style::Stroke).set_stroke_width(sk.width as f32 * px / 96.0 * 2.0);
-            p.set_stroke_join(paint::Join::Round).set_color(color(&sk.color));
-            self.paragraph(&shown, st, px, Some(&p), true, layout_w).paint(canvas, origin);
-        }
-        let fill = st.gradient.as_ref().filter(|g| g.colors.len() >= 2).map(|g| {
-            let a = (g.angle as f32).to_radians();
-            let (dx, dy) = (a.cos() * w / 2.0, a.sin() * h / 2.0);
-            let cols: Vec<Color> = g.colors.iter().map(|c| color(c)).collect();
-            let mut p = Paint::default();
-            p.set_anti_alias(true);
-            p.set_shader(gradient_shader::linear((Point::new(-dx, -dy), Point::new(dx, dy)), cols.as_slice(), None, TileMode::Clamp, None, None));
-            p
-        });
-        let shadow_on_fill = st.stroke.is_none();
-        self.paragraph(&shown, st, px, fill.as_ref(), shadow_on_fill, layout_w).paint(canvas, origin);
-        (w, h)
-    }
-}
-
-fn shape_text(text: &str, st: &TextStyle) -> String {
-    if st.uppercase { text.to_uppercase() } else { text.to_string() }
 }
 
 fn sampling() -> skia_safe::SamplingOptions {
@@ -510,10 +533,9 @@ const CM_ID: Cm = [1., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 1., 0., 0., 0
 
 /// Gộp hiệu ứng màu thành một ma trận (Skia áp trên CPU/GPU): làm tối, phơi sáng, độ sáng, tương phản,
 /// độ đậm màu, đen trắng, nhiệt độ màu, xoay hue.
-fn effect_matrix(l: &Layer) -> Option<ColorMatrix> {
-    let get = |k: &str| l.effects.iter().filter(|e| e.kind == k).map(|e| e.amount).sum::<f64>() as f32;
+fn effect_matrix(get: &dyn Fn(&str) -> f32, extra_hue: f32) -> Option<ColorMatrix> {
     let names = ["dim", "exposure", "brightness", "contrast", "saturation", "grayscale", "temperature", "hue"];
-    if names.iter().all(|n| get(n) == 0.0) {
+    if extra_hue == 0.0 && names.iter().all(|n| get(n) == 0.0) {
         return None;
     }
     let mut m = CM_ID;
@@ -528,7 +550,7 @@ fn effect_matrix(l: &Layer) -> Option<ColorMatrix> {
             0., 0., 0., 1., 0.,
         ], &m);
     }
-    let hue = get("hue");
+    let hue = get("hue") + extra_hue;
     if hue != 0.0 {
         let (c, s) = (hue.to_radians().cos(), hue.to_radians().sin());
         m = cm_mul(&[

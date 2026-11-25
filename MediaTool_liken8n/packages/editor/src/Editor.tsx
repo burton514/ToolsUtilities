@@ -6,10 +6,11 @@ import { Inspector } from "./Inspector";
 import { Preview } from "./Preview";
 import { Timeline } from "./Timeline";
 import {
-  cloneLayer, compEnd, layerEnd, mediaLayer, newComposition, referencedAssets, shapeLayer, splitLayer, textLayer,
+  cloneLayer, compEnd, isLegacy, layerEnd, mediaLayer, newComposition, referencedAssets, shapeLayer, splitLayer, textLayer,
   type Composition, type Layer,
 } from "./model";
 import { EditorStore, useEditor } from "./store";
+import { ArrowLeft, Copy, ClipboardPaste, Download, FilePlus2, FolderOpen, Music, Pause, Play, Redo2, Upload, Save, Scissors, Shapes, Trash2, Type, Undo2, Video } from "lucide-react";
 import "./editor.css";
 
 function probeDuration(url: string): Promise<number | undefined> {
@@ -80,7 +81,7 @@ function Library({ store, client }: { store: EditorStore; client: MediaToolClien
   const add = async (a: Asset) => {
     const ref = { asset_id: a.id, format: a.format, filename: a.filename };
     const dur = a.format === "image" ? undefined : await probeDuration(client.assetUrl(a.id));
-    const layer = mediaLayer(store.state.time, ref, dur);
+    const layer = mediaLayer(store.state.comp.layers.length ? store.state.time : 0, ref, dur);
     store.apply((c) => ({ ...c, layers: a.format === "video" || a.format === "image" ? [layer, ...c.layers] : [...c.layers, layer] }));
     store.set({ selected: layer.id });
   };
@@ -88,7 +89,7 @@ function Library({ store, client }: { store: EditorStore; client: MediaToolClien
     <div className="ed-library">
       <div className="ed-lib-head">
         <b>Thư viện</b>
-        <Button small disabled={busy} onClick={() => fileRef.current?.click()}>{busy ? "Đang tải…" : "+ Tải lên"}</Button>
+        <Button small icon={<Upload size={14} />} loading={busy} onClick={() => fileRef.current?.click()}>{busy ? "Đang tải…" : "Tải lên"}</Button>
         <input ref={fileRef} type="file" hidden accept="video/*,audio/*,image/*" onChange={async (e) => {
           const f = e.target.files?.[0];
           e.target.value = "";
@@ -106,12 +107,14 @@ function Library({ store, client }: { store: EditorStore; client: MediaToolClien
       <div className="ed-lib-list">
         {assets.map((a) => (
           <button key={a.id} className="ed-lib-item" onClick={() => add(a)} title="Bấm để thêm vào timeline tại playhead">
-            {a.format === "image" ? <img src={client.assetUrl(a.id)} alt="" /> : <span className="ed-lib-ico">{a.format === "video" ? "🎬" : "♪"}</span>}
+            {a.format === "image" ? <span className="ed-lib-thumb"><img src={client.assetUrl(a.id)} alt="" loading="lazy" /></span>
+              : a.format === "video" ? <span className="ed-lib-thumb"><img src={client.thumbnailUrl(a.id, 180)} alt="" loading="lazy" /><Play size={14} className="ed-lib-play" /></span>
+              : <span className="ed-lib-thumb audio"><Music size={18} /></span>}
             <span className="ed-lib-name">{a.filename}</span>
-            <Badge>{a.format}</Badge>
+            <span className="ed-lib-kind">{({ video: "Video", audio: "Âm thanh", image: "Ảnh" } as Record<string, string>)[a.format] ?? a.format}</span>
           </button>
         ))}
-        {!assets.length && <div className="ed-dim ed-pad">Chưa có file. Bấm “+ Tải lên”.</div>}
+        {!assets.length && <div className="ed-dim ed-pad">Chưa có file nào. Tải video, nhạc hoặc ảnh lên để bắt đầu.</div>}
       </div>
     </div>
   );
@@ -185,6 +188,14 @@ export function Editor({ client, onExit }: { client: MediaToolClient; onExit?: (
   const [exporting, setExporting] = useState(false);
   useAudioPlayback(store, client);
 
+  // Bản dựng dạng cũ (mở file / bản tự lưu trước đây) → nâng cấp bằng chính engine (một nguồn chuẩn duy nhất)
+  useEffect(() => {
+    if (!isLegacy(comp)) return;
+    client.prepareComposition<Composition>(comp)
+      .then((c) => store.replace(JSON.parse(JSON.stringify(c, (k, v) => (k === "_windows" || k === "_window" ? undefined : v)))))
+      .catch(() => undefined);
+  }, [comp, client, store]);
+
   // vòng phát
   useEffect(() => {
     if (!playing) return;
@@ -211,7 +222,7 @@ export function Editor({ client, onExit }: { client: MediaToolClient; onExit?: (
   const addLayer = (l: Layer) => {
     store.apply((c) => ({ ...c, layers: [...c.layers, l] }));
     // nhảy playhead tới lúc hiệu ứng xuất hiện xong để thấy và chỉnh được lớp ngay
-    const shown = l.start + (l.animation?.in?.duration ?? 0) + 0.05;
+    const shown = l.start + Math.max(0, ...(l.animations ?? []).filter((a) => a.kind === "in").map((a) => a.duration ?? 0.5)) + 0.05;
     store.set({ selected: l.id, ...(store.state.time < shown ? { time: shown } : {}) });
   };
   /** Cắt tại playhead: các lớp đang chọn, hoặc mọi lớp đi qua playhead nếu chưa chọn gì. */
@@ -285,30 +296,30 @@ export function Editor({ client, onExit }: { client: MediaToolClient; onExit?: (
   return (
     <div className="ed-root">
       <header className="ed-top">
-        {onExit && <Button small onClick={onExit}>← Quay lại</Button>}
-        <b>Timeline editor</b>
-        <Button small onClick={() => store.undo()} disabled={!store.canUndo()} title="Ctrl+Z">↶</Button>
-        <Button small onClick={() => store.redo()} disabled={!store.canRedo()} title="Ctrl+Y">↷</Button>
+        {onExit && <Button small ghost icon={<ArrowLeft size={14} />} onClick={onExit}>Quay lại</Button>}
+        <b className="ed-title">Dựng video</b>
+        <Button small onClick={() => store.undo()} disabled={!store.canUndo()} title="Hoàn tác (Ctrl+Z)" icon={<Undo2 size={14} />} aria-label="Hoàn tác" />
+        <Button small onClick={() => store.redo()} disabled={!store.canRedo()} title="Làm lại (Ctrl+Y)" icon={<Redo2 size={14} />} aria-label="Làm lại" />
         <span className="ed-sep" />
-        <Button small onClick={() => addLayer(textLayer(store.state.time))}>+ Chữ</Button>
-        <Button small onClick={() => addLayer(shapeLayer(store.state.time, "rect"))}>+ Hình</Button>
-        <Button small onClick={split} title="S (lớp đang chọn, hoặc mọi lớp đi qua playhead)">✂ Cắt</Button>
-        <Button small onClick={duplicate} disabled={!selected} title="Ctrl+D">Nhân bản</Button>
-        <Button small onClick={() => store.copy()} disabled={!selected} title="Ctrl+C">Chép</Button>
-        <Button small onClick={() => store.paste()} title="Ctrl+V (dán tại playhead)">Dán</Button>
-        <Button small danger onClick={() => store.deleteSelected(true)} disabled={!selected} title="Shift+Del: xóa và dồn các lớp phía sau lên">Xóa dồn{selCount > 1 ? ` (${selCount})` : ""}</Button>
+        <Button small icon={<Type size={14} />} onClick={() => addLayer(textLayer(store.state.time))}>Chữ</Button>
+        <Button small icon={<Shapes size={14} />} onClick={() => addLayer(shapeLayer(store.state.time, "rect"))}>Hình</Button>
+        <Button small onClick={split} icon={<Scissors size={14} />} title="Cắt tại vạch phát (phím S)">Cắt</Button>
+        <Button small onClick={duplicate} disabled={!selected} icon={<Copy size={14} />} title="Nhân bản (Ctrl+D)">Nhân bản</Button>
+        <Button small onClick={() => store.copy()} disabled={!selected} title="Sao chép (Ctrl+C)">Chép</Button>
+        <Button small onClick={() => store.paste()} icon={<ClipboardPaste size={14} />} title="Dán tại vạch phát (Ctrl+V)">Dán</Button>
+        <Button small danger onClick={() => store.deleteSelected(true)} disabled={!selected} icon={<Trash2 size={14} />} title="Xóa và dồn các lớp phía sau lên (Shift+Del)">Xóa{selCount > 1 ? ` (${selCount})` : ""}</Button>
         <span className="ed-sep" />
-        <Button small primary={!playing} onClick={() => store.set({ playing: !playing })} title="Space">{playing ? "⏸ Dừng" : "▶ Phát"}</Button>
+        <Button small primary={!playing} onClick={() => store.set({ playing: !playing })} title="Phát / dừng (phím cách)" icon={playing ? <Pause size={14} /> : <Play size={14} />}>{playing ? "Dừng" : "Phát"}</Button>
         <span className="ed-grow" />
-        <Button small onClick={openFile}>Mở…</Button>
-        <Button small onClick={saveFile}>Lưu JSON</Button>
-        <Button small danger onClick={() => confirm("Tạo bản dựng mới? Bản hiện tại sẽ bị thay.") && store.replace(newComposition("16:9"))}>Mới</Button>
-        <Button small primary onClick={() => setExporting(true)} disabled={!comp.layers.length}>Xuất video</Button>
+        <Button small ghost icon={<FolderOpen size={14} />} onClick={openFile}>Mở</Button>
+        <Button small ghost icon={<Save size={14} />} onClick={saveFile} title="Lưu bản dựng ra file .json">Lưu</Button>
+        <Button small ghost icon={<FilePlus2 size={14} />} onClick={() => confirm("Tạo bản dựng mới? Bản hiện tại sẽ bị thay.") && store.replace(newComposition("16:9"))}>Mới</Button>
+        <Button small primary icon={<Download size={14} />} onClick={() => setExporting(true)} disabled={!comp.layers.length}>Xuất video</Button>
       </header>
       <div className="ed-main">
         <Library store={store} client={client} />
         <Preview store={store} client={client} />
-        <Inspector store={store} />
+        <Inspector store={store} client={client} />
       </div>
       <Timeline store={store} client={client} />
       <footer className="ed-foot ed-dim">Space phát/dừng · L lặp · S cắt · Ctrl+C/X/V · Ctrl+D nhân bản · Ctrl+A chọn hết · Del xóa · Shift+Del xóa dồn · ←/→ từng khung (Shift: 1 giây) · ↑/↓ dời lớp · Ctrl+Z/Y · Shift/Ctrl+bấm: chọn nhiều · Alt khi kéo: tắt hút · Ctrl+lăn: zoom</footer>

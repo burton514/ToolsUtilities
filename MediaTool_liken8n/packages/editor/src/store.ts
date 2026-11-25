@@ -1,5 +1,6 @@
 // Trạng thái editor + lịch sử undo/redo. Mọi thay đổi composition đều đi qua apply() (một đường lệnh duy nhất).
 import { useSyncExternalStore } from "react";
+import type { ResolvedLayer } from "@mediatool/api-client";
 import { cloneLayer, compEnd, layerEnd, type Composition, type Layer } from "./model";
 
 const AUTOSAVE_KEY = "mediatool.editor.autosave";
@@ -33,6 +34,8 @@ export interface EditorState {
   pxPerSec: number;
   view: ViewState;
   guides: Guides;
+  /** thời gian đã giải mốc (engine trả về cùng khung xem trước) */
+  resolved: Record<string, ResolvedLayer>;
   version: number;
 }
 
@@ -54,7 +57,7 @@ export class EditorStore {
     }
     this.state = {
       comp, selection: [], selected: null, time: 0, playing: false, rate: 1, loop: false, snap: true, pxPerSec: 60,
-      view: { zoom: "fit", panX: 0, panY: 0 }, guides: { grid: false, safe: false, center: false, platform: "none" }, version: 0,
+      view: { zoom: "fit", panX: 0, panY: 0 }, guides: { grid: false, safe: false, center: false, platform: "none" }, resolved: {}, version: 0,
     };
   }
 

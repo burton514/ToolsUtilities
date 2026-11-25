@@ -8,6 +8,8 @@ description = "Engine render native: Composition -> khung hình (Skia) -> video 
 [dependencies]
 anyhow.workspace = true
 serde.workspace = true
+serde_json.workspace = true
+unicode-segmentation = "1"
 
 
 skia-safe = { version = "0.157", features = ["textlayout"] }

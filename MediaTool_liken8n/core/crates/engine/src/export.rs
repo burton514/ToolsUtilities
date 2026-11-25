@@ -58,6 +58,9 @@ pub fn export(
     mut progress: impl FnMut(f64, &str),
     cancel: &AtomicBool,
 ) -> Result<()> {
+    // giải mốc thời gian / chuẩn hóa một lần cho cả video (dùng chung với xem trước)
+    let prepared = comp.prepare();
+    let comp = &prepared;
     let duration = comp.end();
     if duration <= 0.0 {
         return Err(anyhow!("Bản dựng trống"));

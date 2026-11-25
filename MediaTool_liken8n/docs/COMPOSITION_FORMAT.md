@@ -1,389 +1,262 @@
 # Composition — định dạng dựng hình, chữ nghệ thuật và animation
 
-> Đây là "bản dựng" của một video nghệ thuật: nhiều **lớp** (video, ảnh, chữ, hình vẽ, hình nhảy theo nhạc…) xếp chồng lên nhau, mỗi lớp **hiện trong một khoảng thời gian**, có **vị trí**, **kiểu dáng** và **chuyển động**.
+> Composition là "bản dựng" của một video: nhiều **lớp** (video, ảnh, chữ, hình, âm thanh) xếp chồng, mỗi lớp **hiện trong một khoảng thời gian**, có **vị trí**, **kiểu dáng** và **chuyển động**.
 >
-> - Composition là một asset có `format` = `composition`, lưu dạng JSON.
-> - Composition là **dữ liệu**, chưa phải video. Các tool `compose_*` tạo và sửa nó; chỉ `compose_render` biến nó thành video thật.
-> - Vì chỉ là dữ liệu nên AI (qua MCP), mini app và người dùng (kéo thả trên timeline) đều sửa được cùng một bản dựng.
->
-> Tham số của các tool `compose_*`: xem [TOOL_SPECS.md](TOOL_SPECS.md), mục 9.
+> - Là một asset `format = "composition"`, lưu dạng JSON. Là **dữ liệu**, chưa phải video: chỉ engine render (`compose_render`, xem trước của editor) biến nó thành hình.
+> - Editor, tool, chuỗi tự động, MCP cho AI đều đọc/sửa **cùng một định dạng** này.
+> - Nguồn chuẩn: engine Rust `core/crates/engine/src/model.rs` (kiểu dữ liệu) và `prepare.rs` (chuẩn hóa + giải mốc thời gian). Phía editor: `packages/editor/src/model.ts`.
+
+## 0. Nguyên tắc: viết một lần, dùng mọi nơi
+
+Các **thành phần cơ bản** dưới đây được định nghĩa **một lần** và gắn được cho **mọi loại lớp**. Thêm một kiểu bóng, một preset chuyển động… là mọi lớp và mọi nơi (editor, tool, AI) có ngay.
+
+| Thành phần | Dùng ở |
+|---|---|
+| `Timing` / `TimeRef` — thời gian đầu/cuối, neo theo mốc | lớp · từng chuyển động · từng hiệu ứng · từng đoạn chữ |
+| `Fill` — màu đơn, chuyển màu thẳng/tròn/xoay vòng, ảnh họa tiết | chữ · hình · viền · nền chữ |
+| `Stroke[]` — nhiều lớp viền, mỗi lớp tô bằng `Fill` | mọi lớp (chữ/hình: viền vector; ảnh/video: viền theo hình dạng điểm ảnh) |
+| `Shadow[]` — đổ bóng, phát sáng, neon, bóng dài, nổi khối 3D | mọi lớp |
+| `Effect[]` — chỉnh màu, làm mờ… có thời gian riêng | mọi lớp |
+| `Anim[]` — chuyển động: preset + thời gian + đơn vị (cả lớp / dòng / từ / chữ cái) + phần được chọn | mọi lớp (chia dòng/từ/chữ cái: lớp chữ) |
+| `keyframes` theo đường dẫn bất kỳ | mọi thuộc tính số hoặc màu |
+
+Engine chạy `prepare()` **một lần** trước khi render (xem trước, xuất video, API `POST /v1/composition/prepare` dùng chung): chuyển bản dựng dạng cũ sang dạng mới và giải mọi mốc thời gian ra giây.
 
 ---
 
-## 1. Ví dụ đầy đủ
+## 1. Ví dụ
 
-Video lời bài hát: nền là video gốc làm mờ, tên bài hiện ở đầu với hiệu ứng nảy, logo ở góc, ngôi sao bay ngang màn hình, chữ đập theo phách ở điệp khúc.
+Tên bài hiện sau logo 1 giây, chữ cái trồi lên lần lượt; trong điệp khúc chữ "50%" đập theo từng beat; từ giây 12 video chuyển đen trắng trong 2 giây.
 
 ```json
 {
   "version": 1,
   "canvas": { "width": 1920, "height": 1080, "fps": 30, "background": "#000000" },
-  "duration": 215.4,
-
-  "refs": { "beats": "asset:bg_7", "lyrics": "asset:tl_3" },
-  "markers": [ { "id": "chorus1", "time": 62.5, "label": "Điệp khúc 1" } ],
-
-  "audio": [
-    { "source": "asset:a_12", "start": 0, "volume": 100, "fade_out": 2 }
+  "markers": [
+    { "id": "chorus", "label": "Điệp khúc", "start": 10, "end": 20, "kind": "section" },
+    { "start": 10.0, "kind": "beat" }, { "start": 10.5, "kind": "beat" }, { "start": 11.0, "kind": "beat" }
   ],
-
   "layers": [
-    {
-      "id": "bg", "type": "video", "source": "asset:v_3",
-      "start": 0, "duration": "full", "fit": "cover",
-      "effects": [ { "type": "blur", "amount": 30 }, { "type": "dim", "amount": 35 } ]
-    },
-    {
-      "id": "title", "type": "text", "text": "Nơi Này Có Anh",
-      "start": 0.5, "duration": 4,
-      "position": { "x": 0.5, "y": 0.42 },
-      "style": "preset:gold_luxury", "style_override": { "size": 130 },
-      "animation": {
-        "in":   { "preset": "letters_rise", "duration": 0.8, "split": "char", "stagger": 0.04, "ease": "back" },
-        "out":  { "preset": "fade_up", "duration": 0.5 },
-        "loop": { "preset": "glow_pulse", "speed": 1 }
-      }
-    },
-    {
-      "id": "logo", "type": "image", "source": "asset:i_5",
-      "start": 0, "duration": "full",
-      "position": { "anchor": "top_right", "margin": 0.03 }, "scale": 0.12, "opacity": 85
-    },
-    {
-      "id": "star", "type": "shape", "shape": "star",
-      "fill": { "color": "#FFD54F" }, "size": { "w": 0.05, "h": 0.05 },
-      "start": { "marker": "chorus1" }, "duration": 3,
-      "keyframes": {
-        "position": [
-          { "t": 0, "value": { "x": -0.05, "y": 0.2 }, "ease": "ease_out" },
-          { "t": 3, "value": { "x": 1.05,  "y": 0.15 } }
-        ],
-        "rotation": [ { "t": 0, "value": 0 }, { "t": 3, "value": 720, "ease": "linear" } ]
-      },
-      "effects": [ { "type": "glow", "color": "#FFD54F", "amount": 60 } ]
-    },
-    {
-      "id": "chorus_text", "type": "text", "text": "Em là tất cả",
-      "start": { "marker": "chorus1" }, "duration": { "beats": 16 },
-      "position": { "x": 0.5, "y": 0.75 }, "style": "preset:neon_pink",
-      "animation": { "in": { "preset": "pop_bounce", "duration": 0.4 }, "out": { "preset": "blur_out", "duration": 0.4 } },
-      "bindings": [ { "property": "scale", "source": "beat", "amount": 12 } ]
-    }
+    { "id": "bg", "type": "video", "source": "asset:v_3", "start": 0, "duration": 30, "fit": "cover",
+      "effects": [ { "type": "grayscale", "amount": 100, "timing": { "start": 12, "duration": 2 }, "ramp": 0.3 } ] },
+    { "id": "logo", "type": "image", "source": "asset:i_5", "start": 0, "duration": 3, "x": 0.9, "y": 0.1, "scale": 0.15 },
+    { "id": "title", "type": "text", "text": "GIẢM 50% hôm nay",
+      "timing": { "start": { "ref": "layer:logo.end", "offset": 1 }, "end": { "ref": "marker:chorus.end" } },
+      "style": { "font": "Noto Sans", "weight": 900, "size": 110,
+                 "fill": { "type": "linear", "stops": ["#FFF6C2", "#FFC83D", "#B8860B"], "angle": 90 } },
+      "spans": [ { "start": 5, "end": 8, "style": { "size": 150, "fill": "#FF1744", "underline": true } } ],
+      "strokes": [ { "color": "#4E342E", "width": 5 }, { "color": "#FFFFFF", "width": 12 } ],
+      "shadows": [ { "kind": "drop", "color": "#000000AA", "x": 4, "y": 6, "blur": 6 } ],
+      "animations": [
+        { "preset": "rise", "kind": "in", "unit": "char", "duration": 1.2 },
+        { "preset": "punch", "kind": "emphasis", "unit": "word", "select": { "match": "50" },
+          "timing": { "start": { "ref": "marker:chorus" }, "end": { "ref": "marker:chorus.end" }, "repeat": { "every": { "ref": "beat" } } },
+          "duration": 0.3 },
+        { "preset": "fade", "kind": "out", "duration": 0.4 }
+      ] }
   ]
 }
 ```
 
 ---
 
-## 2. Khung hình (`canvas`) và tổng thể
+## 2. Khung hình và đơn vị
 
-| Trường | Nghĩa | Ví dụ |
-|---|---|---|
-| `canvas.width`, `canvas.height` | Kích thước khung hình (điểm ảnh) | `1920 × 1080` ngang, `1080 × 1920` dọc |
-| `canvas.fps` | Số hình mỗi giây | `30` |
-| `canvas.background` | Màu nền, hoặc `"transparent"` (nền trong suốt) | `"#000000"` |
-| `duration` | Tổng thời lượng (giây) | `215.4` |
-| `refs` | Asset tham chiếu dùng cho **mốc thời gian**: `beats` (beat_grid), `lyrics` (timed_lyrics), `sections` (time_ranges) | |
-| `markers` | Các mốc đặt tên, ví dụ "Điệp khúc 1"; lớp có thể bám theo mốc | |
-| `audio` | Các track âm thanh, mỗi track gồm `source`, `start`, `volume` (%), `fade_in`, `fade_out` | |
-| `layers` | Danh sách lớp. **Lớp đứng sau nằm trên** lớp đứng trước | |
+| Trường | Ý nghĩa |
+|---|---|
+| `canvas.width/height` | Kích thước khung (px). 1920×1080, 1080×1920, 1080×1080… |
+| `canvas.fps`, `canvas.background` | Số hình/giây, màu nền |
+| `duration` | Thời lượng tối thiểu (bản dựng dài bằng lớp kết thúc muộn nhất nếu dài hơn) |
+| `markers[]` | Mốc có tên: `{id, start, end?, label?, kind?}`. `kind`: `section`, `beat`, `downbeat`, `scene` hoặc tùy ý |
 
-### Đơn vị vị trí và kích thước: tỉ lệ 0–1
-
-Vị trí và kích thước dùng **tỉ lệ theo khung hình**: `x = 0` là mép trái, `x = 1` là mép phải, `y = 0` là mép trên, `y = 1` là mép dưới, `0.5` là giữa. Nhờ vậy, cùng một bản dựng đổi sang dọc hay vuông vẫn đúng chỗ.
-
-Cỡ chữ (`size`) tính theo **khung cao 1080**. Chữ cỡ 100 ở khung 1080 sẽ tự thành cỡ 200 ở khung 2160.
+- Vị trí `x, y` của lớp: **tỉ lệ 0–1** của khung (0.5, 0.5 = giữa). Tâm lớp đặt tại đó.
+- Độ dài của viền, bóng, bo góc: **pixel theo khung cao 1080** (khung khác tự quy đổi). Riêng viền của chữ tính theo cỡ chữ 96 (chữ to thì viền to theo).
+- Màu: `"#RRGGBB"` hoặc `"#RRGGBBAA"` (AA = độ trong suốt).
 
 ---
 
-## 3. Thời gian: "hẹn giờ" cho từng lớp
+## 3. Thời gian: `Timing` và `TimeRef`
 
-Mỗi lớp có **lúc bắt đầu** (`start`) và **thời lượng** (`duration`). Hai trường này nhận **số giây** hoặc **mốc thời gian**:
+Mỗi lớp luôn có `start` + `duration` (giây). Muốn **neo** vào thứ khác thì thêm `timing` — engine giải ra `start`/`duration` thật.
 
-### `start`: bắt đầu lúc nào
+```json
+"timing": { "start": <TimeRef>, "end": <TimeRef> | null, "duration": <giây> | null, "repeat": { "every": <TimeRef>, "duration": <giây>, "count": <n> } | null }
+```
 
-| Cách viết | Nghĩa |
+**`TimeRef`** — một mốc thời gian:
+
+| Viết | Nghĩa |
 |---|---|
-| `12.5` | Ở giây 12.5 |
-| `{ "marker": "chorus1", "offset": -0.5 }` | Nửa giây trước mốc "Điệp khúc 1" |
-| `{ "beat": 32 }` | Đúng phách thứ 32 của bài (cần `refs.beats`) |
-| `{ "downbeat": 8 }` | Đúng phách mạnh thứ 8 (đầu ô nhịp thứ 8) |
-| `{ "lyric_line": 5 }` | Lúc bắt đầu hát câu thứ 5 (cần `refs.lyrics`) |
-| `{ "lyric_word": "yêu", "occurrence": 2 }` | Lúc hát chữ "yêu" lần thứ 2 |
-| `{ "section": "chorus", "occurrence": 1 }` | Đầu đoạn điệp khúc đầu tiên (cần `refs.sections`) |
-| `{ "after": "title", "gap": 0.2 }` | 0.2 giây sau khi lớp `title` kết thúc |
-| `{ "with": "title", "offset": 1 }` | 1 giây sau khi lớp `title` bắt đầu |
+| `12.5` | Giây thứ 12,5 |
+| `{"ref": "self.start", "offset": 0.5}` | Đầu của chính phần tử cha (lớp chứa animation/effect) + 0,5 giây. Có `self.end` |
+| `{"ref": "layer:<id>.end"}` | Theo lớp khác (`.start` hoặc `.end`). Kéo lớp kia thì lớp này đi theo |
+| `{"ref": "marker:<id>"}` · `{"ref": "marker:<id>.end"}` | Theo mốc có tên (id hoặc label) |
+| `{"ref": "beat", "n": 16}` · `{"ref": "downbeat", "n": 4}` | Mốc thứ n có `kind` beat/downbeat (đếm từ 1) |
+| `{"ref": "kind:scene", "n": 2}` | Mốc thứ n có `kind` bất kỳ |
+| `{"ref": "comp.end"}` | Cuối bản dựng |
 
-### `duration`: hiện trong bao lâu
+`offset` (giây, âm = sớm hơn) dùng được với mọi `ref`.
 
-| Cách viết | Nghĩa |
-|---|---|
-| `4` | 4 giây |
-| `"full"` | Đến hết video |
-| `{ "beats": 16 }` | Trong 16 phách |
-| `{ "until": { "marker": "outro" } }` | Đến mốc "outro" |
-| `{ "until": { "lyric_line": 6 } }` | Đến khi bắt đầu câu thứ 6 |
-| `"source"` | Bằng độ dài của video/audio nguồn (lớp media) |
+**`repeat`** — lặp trong khoảng của `timing`: `every` là số giây (`1`) hoặc mốc (`{"ref":"beat"}`, `{"ref":"downbeat"}`, `{"ref":"kind:scene"}`); mỗi lần dài `repeat.duration` (mặc định = `duration` của animation).
 
-Khi render, `compose_render` đổi mọi mốc ra số giây. Đổi bài nhạc, hay căn lại beat hoặc lời, thì các lớp **tự đi theo**, không phải chỉnh tay lại.
+**Gắn được vào:** lớp (`layer.timing`) · chuyển động (`animations[].timing`) · hiệu ứng (`effects[].timing`) · đoạn chữ (`spans[].timing`).
 
-### Thời gian riêng của lớp media
-
-| Trường | Nghĩa |
-|---|---|
-| `trim_start` | Bỏ qua bao nhiêu giây đầu của video/audio nguồn |
-| `speed` | Tốc độ phát của nguồn (`0.5` chậm, `2` nhanh) |
-| `loop` | Hết thì phát lại từ đầu (video, GIF, sticker) |
+Thời gian đã giải: API `POST /v1/composition/prepare` trả composition kèm `_windows` (chuyển động) và `_window` (hiệu ứng, đoạn chữ) — **chỉ để đọc**, engine luôn tính lại.
 
 ---
 
-## 4. Các loại lớp (`type`)
+## 4. Các loại lớp
 
-| `type` | Là gì | Trường riêng |
-|---|---|---|
-| `video` | Video (asset `video`) | `source`, `fit`, `trim_start`, `speed`, `loop`, `volume` |
-| `image` | Ảnh tĩnh, GIF hoặc WebP động | `source`, `fit`, `loop` |
-| `text` | Chữ nghệ thuật | `text`, `style`, `style_override`, `max_width` |
-| `shape` | Hình vẽ: `rect`, `rounded_rect`, `circle`, `line`, `star`, `polygon`, `heart`, `arrow`, `svg_path` | `shape`, `size`, `fill`, `stroke`, `corner_radius`, `points` |
-| `sticker` | Ảnh nhỏ trang trí, có sẵn chuyển động vui | `source` hoặc `sticker` (tên trong thư viện) |
-| `lyrics` | Lời bài hát **tự chạy theo thời gian** từ `timed_lyrics`: tự hiện câu đang hát, tô màu từng chữ | `source`, `mode`, `lines_on_screen`, `syllable_effect`, `style` |
-| `visualizer` | Hình nhảy theo nhạc | `audio`, `style` (`bars`, `waves`, `circle`, `spectrum`), `color`, `size` |
-| `group` | Nhóm nhiều lớp: di chuyển, xoay, ẩn hiện cùng nhau | `children` |
-| `adjustment` | Lớp "chỉnh màu/hiệu ứng" áp cho **mọi lớp nằm dưới nó** trong thời gian nó hiện | chỉ có `effects` |
-| `particles` *(P1)* | Hiệu ứng hạt: `confetti` (giấy màu), `snow` (tuyết), `sparkles` (lấp lánh), `hearts`, `petals` (cánh hoa) | `preset`, `density`, `color` |
+| `type` | Trường riêng |
+|---|---|
+| `video` | `source` ("asset:<id>"), `fit` (contain/cover), `trim_start`, `volume`, `muted` |
+| `image` | `source`, `fit` |
+| `text` | `text`, `style` (mục 7), `spans` (rich text) |
+| `shape` | `shape` (rect/circle/star), `w`, `h` (tỉ lệ khung), `fill` (`Fill`), `corner_radius` |
+| `audio` | `source`, `trim_start`, `volume`, `muted` |
 
-`fit` (cách đặt ảnh/video vào khung): `cover` (phủ kín, cắt bớt mép), `contain` (thấy toàn bộ, có thể dư viền), `stretch` (kéo giãn).
+**Thuộc tính chung của mọi lớp**
 
-### Thuộc tính chung của mọi lớp
+| Trường | Ý nghĩa |
+|---|---|
+| `id`, `name` | Định danh, tên hiển thị |
+| `start`, `duration`, `timing` | Thời gian (mục 3) |
+| `x`, `y`, `scale`, `rotation`, `opacity` | Vị trí (0–1), to nhỏ, xoay (độ), độ rõ (0–100) |
+| `animations[]` | Chuyển động (mục 5) |
+| `keyframes` | Keyframe theo đường dẫn (mục 6) |
+| `effects[]` | Hiệu ứng (mục 8) |
+| `strokes[]`, `shadows[]` | Viền, bóng (mục 7.2) |
+| `blend` | Hòa trộn với lớp dưới: multiply, screen, overlay, … add |
+| `mask` | Mặt nạ hình học: rect/ellipse/star/heart/diamond/bars, `feather`, `invert` |
+| `crop`, `flip_h`, `flip_v`, `background_fill: "blur"` | Cắt mép, lật, nền mờ lấp khung (ảnh/video) |
+| `speed`, `fade_in`, `fade_out` | Tốc độ nguồn 0.1–5, âm lượng to/nhỏ dần (video/audio) |
+| `hidden`, `locked` | Ẩn, khóa (editor) |
 
-| Trường | Nghĩa | Mặc định |
-|---|---|---|
-| `id`, `name` | Mã lớp (dùng để tham chiếu) và tên hiển thị trên timeline | tự sinh |
-| `start`, `duration` | Thời gian (mục 3) | `0`, `"full"` |
-| `position` | `{x, y}` (0–1), hoặc `{anchor, margin}` với `anchor` thuộc 9 vị trí `top_left` … `bottom_right`, `center` | giữa khung |
-| `anchor_point` | Điểm của lớp dùng để đặt vị trí và để xoay quanh | `center` |
-| `scale` | Phóng to/thu nhỏ: một số, hoặc `{x, y}` | `1` |
-| `rotation` | Góc xoay (độ, chiều kim đồng hồ) | `0` |
-| `opacity` | Độ rõ, 0–100 % | `100` |
-| `blend` | Cách hòa trộn với lớp dưới: `normal`, `multiply` (tối đi), `screen` (sáng lên), `overlay`, `add` (phát sáng) | `normal` |
-| `effects` | Hiệu ứng của lớp (mục 7) | trống |
-| `mask` *(P1)* | Chỉ hiện trong một hình: `{shape, feather (độ mờ viền), invert}` | không |
-| `animation` | Chuyển động có sẵn (mục 6) | không |
-| `keyframes` | Chuyển động tự tạo (mục 5) | không |
-| `bindings` | Chuyển động theo nhạc (mục 6.4) | không |
-| `visible`, `locked` | Ẩn lớp / khóa lớp trên timeline (chỉ dùng cho giao diện) | `true`, `false` |
+Lớp sau nằm trên lớp trước.
 
 ---
 
-## 5. Keyframe: tự tạo chuyển động
+## 5. Chuyển động (`animations[]`)
 
-Keyframe là "điểm mốc": **tại thời điểm `t`, thuộc tính có giá trị `value`**. Giữa hai mốc, thuộc tính đổi dần theo kiểu `ease`. `t` tính **từ lúc lớp bắt đầu**.
+Mỗi phần tử là **một** chuyển động:
+
+```json
+{ "preset": "rise", "kind": "in", "unit": "char", "duration": 1.2,
+  "stagger": 0.04, "order": "forward", "ease": "back", "intensity": 1,
+  "select": { "match": "50%", "range": [0, 3], "every": 2 },
+  "timing": { ... }, "period": 1.0 }
+```
+
+| Trường | Ý nghĩa |
+|---|---|
+| `preset` | Tên chuyển động (bảng dưới) |
+| `kind` | `in` xuất hiện · `out` biến mất · `loop` lặp liên tục · `emphasis` nhấn một lần |
+| `duration` | Độ dài khi không có `timing`. Mặc định: in/out 0,5 s neo đầu/cuối lớp; loop suốt lớp; emphasis 0,6 s |
+| `timing` | Áp từ lúc nào đến lúc nào, có thể `repeat` theo beat (mục 3) |
+| `unit` | `layer` (mặc định) · `line` · `word` · `char` — chữ chia đơn vị, mỗi đơn vị chạy lệch nhau |
+| `stagger`, `order` | Độ trễ giữa các đơn vị (giây; bỏ trống = tự tính), thứ tự: forward · backward · center · edges · random |
+| `select` | Chỉ áp cho đơn vị thỏa: `match` (có chứa chữ này), `range` [đầu, cuối), `every` (mỗi n) |
+| `ease` | linear · ease_in · ease_out · ease_in_out · back · elastic · bounce |
+| `intensity` | Độ mạnh (1 = mặc định) |
+| `period` | Chu kỳ (giây) cho `loop` |
+
+Chia đơn vị lồng nhau đúng thứ bậc: dòng → từ → chữ cái (chữ cái xoay quanh tâm của nó, từ xoay quanh tâm của từ).
+
+**Preset** (cùng một bảng cho mọi lớp; `out` là chiều ngược của `in` đối xứng):
+
+| Loại | Preset |
+|---|---|
+| `in` | fade, fade_up, fade_down, fade_left, fade_right, slide_left, slide_right, slide_up, slide_down, zoom_in, zoom_out, pop, pop_bounce, elastic_in, drop, rise, blur_in, spin_in, flip_in, flip_up, stretch_in, swing_in, typewriter, glitch_in, wipe_left/right/up/down, circle_open |
+| `out` | fade, fade_up, fade_down, slide_*, zoom_out, zoom_in, pop_out, blur_out, spin_out, flip_out, drop_out, typewriter (xóa từng chữ), glitch_out, wipe_*, circle_close |
+| `loop` | float, pulse, breathe, shake, swing, rotate, flicker, blink, wave, jiggle, heartbeat, rainbow, bounce_loop |
+| `emphasis` | punch, bounce, jump, flash, rubber, tada, wobble, headshake |
+
+`wipe_*`/`circle_*` chỉ áp cho cả lớp. `typewriter` và `wave` mặc định chia theo chữ cái.
+
+**Dạng cũ** `animation: { "in": {...}, "out": {...}, "loop": {...} }` vẫn đọc được — engine tự đổi sang `animations`.
+
+---
+
+## 6. Keyframe (`keyframes`)
+
+Khóa là **đường dẫn thuộc tính**, giá trị là danh sách keyframe (`t` tính từ đầu lớp):
 
 ```json
 "keyframes": {
-  "position": [ { "t": 0, "value": { "x": 0.1, "y": 0.5 }, "ease": "ease_out" },
-                { "t": 2, "value": { "x": 0.9, "y": 0.5 } } ],
-  "opacity":  [ { "t": 0, "value": 0 }, { "t": 0.5, "value": 100 } ],
-  "scale":    [ { "t": 0, "value": 0.8 }, { "t": 2, "value": 1.2, "ease": "ease_in_out" } ]
+  "x":               [ { "t": 0, "value": 0.2, "ease": "ease_out" }, { "t": 2, "value": 0.8 } ],
+  "style.size":      [ { "t": 0, "value": 80 }, { "t": 1, "value": 140, "bezier": [0.175, 0.885, 0.32, 1.275] } ],
+  "strokes.0.color": [ { "t": 0, "value": "#FF0000" }, { "t": 3, "value": "#00E5FF" } ],
+  "effects.1.amount":[ { "t": 0, "value": 0 }, { "t": 1.5, "value": 100 } ]
 }
 ```
 
-**Thuộc tính đặt keyframe được:** `position`, `scale`, `rotation`, `opacity`, `anchor_point`, màu (`fill.color`, `stroke.color`), `blur`, `glow`, `letter_spacing` (chữ giãn ra/co lại), `text_reveal` (0–100 %: hiện dần chữ), cùng `amount` của mọi hiệu ứng.
-
-### Kiểu chuyển (`ease`)
-
-| `ease` | Cảm giác |
-|---|---|
-| `linear` | Đều đều, như máy |
-| `ease_in` | Chậm lúc đầu, nhanh dần |
-| `ease_out` | Nhanh lúc đầu, chậm dần rồi dừng êm (**hay dùng nhất**) |
-| `ease_in_out` | Chậm – nhanh – chậm, mềm mại |
-| `back` | Vượt quá đích một chút rồi lùi lại, trông "có lực" |
-| `elastic` | Rung như lò xo rồi dừng |
-| `bounce` | Nảy như quả bóng rơi |
-| `steps(n)` | Nhảy cóc n bước, kiểu đồng hồ hoặc chữ máy đánh |
+- `value`: số hoặc màu (màu được nội suy theo RGBA).
+- `ease` hoặc `bezier` (cubic-bezier kiểu CSS) của keyframe đích quyết định đoạn chuyển.
+- `x, y, scale, rotation, opacity` tính cùng chuyển động; mọi đường dẫn khác (style, viền, bóng, hiệu ứng, fill…) áp trực tiếp vào dữ liệu lớp tại thời điểm đó.
 
 ---
 
-## 6. Animation có sẵn: chọn tên là chạy
+## 7. Kiểu dáng
 
-`animation` gồm 3 phần, phần nào cũng có thể bỏ trống:
+### 7.1 `Fill` — tô màu
 
 ```json
-"animation": {
-  "in":   { "preset": "pop_bounce", "duration": 0.6, "ease": "back" },
-  "out":  { "preset": "fade_down",  "duration": 0.4 },
-  "loop": { "preset": "float", "speed": 1, "amount": 50 }
-}
+"#FFD54F"
+{ "type": "linear", "stops": ["#FFF6C2", {"color": "#FFC83D", "pos": 0.4}, "#B8860B"], "angle": 90 }
+{ "type": "radial", "stops": ["#3A2E7A", "#0D0F1E"], "cx": 0.5, "cy": 0.4, "r": 0.8 }
+{ "type": "sweep",  "stops": ["#FF3B30", "#FFCC00", "#34C759", "#007AFF", "#FF3B30"], "cx": 0.5, "cy": 0.5, "angle": 0 }
+{ "type": "image",  "source": "asset:<id>", "scale": 1.5 }
 ```
 
-- **`in`**: cách lớp **xuất hiện**, chạy trong `duration` giây đầu.
-- **`out`**: cách lớp **biến mất**, chạy trong `duration` giây cuối.
-- **`loop`**: chuyển động **lặp liên tục** trong lúc lớp đang hiện.
+`angle`: 0 = trái→phải, 90 = trên→dưới. Tâm/bán kính theo tỉ lệ khung chứa. Gradient trải liền qua cả khối chữ (kể cả khi chữ chạy từng chữ cái).
 
-### 6.1 Xuất hiện / biến mất (`in` / `out`)
-
-| Preset | Trông như thế nào |
-|---|---|
-| `fade` | Hiện dần / mờ dần |
-| `fade_up`, `fade_down` | Vừa hiện vừa trượt lên / xuống một chút |
-| `slide_left`, `slide_right`, `slide_up`, `slide_down` | Trượt vào từ mép màn hình |
-| `zoom_in`, `zoom_out` | Phóng to từ nhỏ / thu nhỏ từ lớn |
-| `pop_bounce` | Bật ra và nảy nhẹ, vui mắt |
-| `drop` | Rơi từ trên xuống và nảy |
-| `blur_in`, `blur_out` | Từ mờ thành rõ / từ rõ thành mờ |
-| `wipe_left`, `wipe_right` | Lộ ra dần như được lau từ một phía |
-| `flip` | Lật như lật thẻ bài |
-| `spin_in` | Xoay vòng rồi dừng đúng chỗ |
-| `glitch_in` | Nhiễu sọc, giật hình rồi hiện rõ |
-| `typewriter` *(chữ)* | Hiện từng chữ như máy đánh chữ, có con trỏ nhấp nháy |
-| `letters_rise` *(chữ)* | Từng ký tự nhô lên từ dưới, lần lượt |
-| `letters_drop` *(chữ)* | Từng ký tự rơi xuống, lần lượt |
-| `scramble` *(chữ)* | Ký tự đảo lộn ngẫu nhiên rồi dừng thành chữ đúng (kiểu hacker) |
-| `handwrite` *(chữ)* | Nét chữ được "viết" ra dần |
-
-### 6.2 Lặp liên tục (`loop`)
-
-| Preset | Trông như thế nào |
-|---|---|
-| `float` | Bồng bềnh lên xuống nhẹ |
-| `pulse` | Phập phồng to nhỏ |
-| `glow_pulse` | Ánh sáng quanh lớp sáng lên, tối đi |
-| `shake` | Rung lắc |
-| `swing` | Đung đưa như con lắc |
-| `rotate` | Xoay tròn liên tục |
-| `flicker` | Chập chờn như đèn neon sắp hỏng |
-| `rainbow` | Màu đổi liên tục theo cầu vồng |
-| `wave` *(chữ)* | Từng ký tự lượn lên xuống như sóng |
-| `shimmer` *(chữ)* | Vệt sáng lướt ngang qua chữ (kiểu chữ vàng ánh kim) |
-
-### 6.3 Chữ chạy theo từng ký tự, từ hoặc dòng
-
-Thêm vào `in`, `out` hoặc `loop` để animation chạy **lần lượt** thay vì cả khối cùng lúc:
-
-| Trường | Nghĩa | Giá trị | Mặc định |
-|---|---|---|---|
-| `split` | Chia chữ theo | `none` (cả khối), `char` (từng ký tự), `word` (từng từ; tiếng Việt: từng tiếng), `line` (từng dòng) | `none` |
-| `stagger` | Phần tử sau chạy chậm hơn phần tử trước bao nhiêu giây | 0.01 – 0.5 | `0.05` |
-| `order` | Thứ tự chạy | `forward` (trái → phải), `backward`, `center` (từ giữa ra), `random` | `forward` |
-
-Chữ tiếng Việt được tách đúng ký tự **cùng dấu**: "ế" là một ký tự, không bị tách dấu ra khỏi chữ.
-
-### 6.4 Chuyển động theo nhạc (`bindings`)
-
-Gắn một thuộc tính vào nhạc để nó **tự nhảy theo nhạc**:
+### 7.2 `strokes[]` và `shadows[]` (mọi lớp)
 
 ```json
-"bindings": [
-  { "property": "scale",   "source": "beat",  "amount": 12 },
-  { "property": "opacity", "source": "level", "audio": "asset:a_12", "amount": 40 }
-]
+"strokes": [ { "color": "#FF3D7F", "width": 6 },
+             { "fill": { "type": "linear", "stops": ["#00E5FF", "#7C4DFF"], "angle": 0 }, "width": 16, "join": "round", "opacity": 100 } ],
+"shadows": [ { "kind": "drop", "color": "#000000AA", "x": 4, "y": 6, "blur": 8, "spread": 0 },
+             { "kind": "neon", "color": "#FF2FB3", "blur": 34 },
+             { "kind": "extrude", "color": "#F72585", "x": 1, "y": 1, "length": 24 } ]
 ```
 
-| `source` | Nghĩa |
+- Viền: danh sách **từ trong ra ngoài**, mỗi `width` đo từ mép nét. Chữ/hình dùng viền vector (bo tròn chính xác); ảnh/video dùng viền theo hình dạng điểm ảnh (ảnh đã tách nền → sticker).
+- Bóng `kind`: `drop` (đổ bóng, mặc định) · `glow` (phát sáng) · `neon` (sáng nhiều tầng) · `long` (bóng dài phẳng theo hướng x,y) · `extrude` (khối 3D tối dần). Hướng bóng luôn theo khung hình, không xoay theo lớp.
+
+### 7.3 Chữ (`style` của lớp `text`)
+
+| Trường | Ý nghĩa |
 |---|---|
-| `beat` | Mỗi phách nhạc "đập" một cái rồi trở lại (cần `refs.beats`) |
-| `downbeat` | Chỉ đập ở phách mạnh |
-| `level` | Theo độ to tức thời của nhạc: nhạc to thì mạnh, nhạc nhỏ thì nhẹ |
-| `bass` | Theo tiếng trầm (trống, bass) |
+| `font`, `weight` (100–900), `italic` | Font, độ đậm, nghiêng. Font có sẵn: họ Noto (đủ dấu tiếng Việt) |
+| `size` | Cỡ chữ theo khung cao 1080 |
+| `fill` | `Fill` |
+| `align` | left · center · right · justify |
+| `letter_spacing`, `word_spacing`, `line_height`, `max_width` | Giãn chữ, giãn từ, giãn dòng (bội số; 0 = mặc định), rộng tối đa (0–1, tự xuống dòng) |
+| `underline`, `strikethrough` | Gạch chân, gạch ngang |
+| `case` | upper · lower · title (Viết Hoa Đầu Từ) |
+| `warp` | `{ "type": "arc" \| "wave", "amount": -100..100 }` — uốn vòng cung / lượn sóng |
+| `background` | `{ "fill" hoặc "color", "padding", "radius", "mode": "box" \| "line" }` — một khung cho cả đoạn, hoặc mỗi dòng một khung (kiểu phụ đề) |
 
-`amount` (0–100) là độ mạnh. Có thể thêm `range` để chỉ áp dụng trong một đoạn, ví dụ `{ "start": {"marker":"chorus1"}, "duration": {"beats": 32} }`.
+**Rich text** — `spans[]`: `{ "start": 5, "end": 8, "style": { ...phần thay đổi... }, "timing": {...}? }`. `start/end` tính theo ký tự. `style` ghi đè lên kiểu chung (font, size, fill, weight, gạch chân, `strokes`…); có `timing` thì chỉ đổi kiểu trong khoảng đó (ví dụ chữ "SALE" đỏ từ giây 3 đến 5).
 
----
+**Dạng cũ** `style.color`, `style.gradient`, `style.stroke`, `style.shadow`, `style.glow`, `style.uppercase`, `shape.stroke` vẫn đọc được — engine tự đổi sang `fill`, `strokes`, `shadows`, `case`.
 
-## 7. Hiệu ứng của lớp (`effects`)
-
-Mỗi hiệu ứng gồm `{ "type": ..., "amount": 0–100, ...tham số riêng }`; các hiệu ứng áp theo thứ tự trong danh sách.
-
-| `type` | Trông như thế nào | Tham số riêng |
-|---|---|---|
-| `blur` | Làm mờ | |
-| `dim` | Làm tối | |
-| `brightness`, `contrast`, `saturation` | Sáng, tương phản, đậm màu (-100 – 100) | |
-| `color_grade` | Áp màu có sẵn hoặc LUT | `preset` / `lut` |
-| `glow` | Phát sáng quanh lớp | `color`, `radius` |
-| `shadow` | Đổ bóng | `color`, `offset_x`, `offset_y`, `blur` |
-| `outline` | Viền quanh hình/ảnh (kiểu sticker) | `color`, `width` |
-| `vignette` | Tối dần ở bốn góc | |
-| `grain` | Hạt phim | |
-| `glitch` | Nhiễu sọc | |
-| `rgb_split` | Tách màu đỏ/xanh lệch nhau (kiểu ảo giác) | `offset` |
-| `mirror` | Soi gương | `axis` (`x`, `y`) |
-| `chroma_key` *(P1)* | Xóa phông xanh/lá | `color`, `tolerance` |
+**Tiếng Việt:** chữ dàn trang bằng Skia Paragraph (HarfBuzz + ICU) nên dấu luôn đúng; khi chạy từng chữ cái, engine tách theo **cụm ký tự hiển thị** (grapheme) nên dấu không bị tách khỏi chữ.
 
 ---
 
-## 8. Chữ nghệ thuật (`style` của lớp `text`)
-
-`style` có thể là **tên preset** (`"preset:neon_pink"`), **asset kiểu chữ đã lưu** (`"asset:ts_9"`, format `text_style`), hoặc **mô tả đầy đủ**. `style_override` dùng để chỉnh vài trường trên nền một preset.
+## 8. Hiệu ứng (`effects[]`)
 
 ```json
-"style": {
-  "font": { "family": "Be Vietnam Pro", "weight": 800, "italic": false },
-  "size": 110, "letter_spacing": 2, "line_height": 1.15, "align": "center",
-  "case": "none", "max_width": 0.85,
-
-  "fill": { "type": "gradient", "colors": ["#FFE082", "#FF8F00"], "angle": 90 },
-  "strokes": [ { "color": "#3E2723", "width": 6 }, { "color": "#FFFFFF", "width": 14 } ],
-  "shadows": [ { "color": "#00000099", "offset_x": 4, "offset_y": 6, "blur": 8 } ],
-  "glow":    { "color": "#FFB300", "radius": 20, "amount": 50 },
-  "extrude": { "depth": 8, "color": "#6D4C41", "angle": 135 },
-  "warp":    { "type": "arc", "amount": 25 },
-  "background": { "color": "#00000080", "padding": 0.4, "radius": 12 }
-}
+{ "type": "grayscale", "amount": 100, "timing": { "start": 12, "duration": 2 }, "ramp": 0.3 }
 ```
 
-| Nhóm | Trường | Nghĩa |
-|---|---|---|
-| **Font** | `font.family`, `weight` (100 mảnh – 900 rất đậm), `italic` | Kiểu chữ. Chọn trong các font tiếng Việt có sẵn hoặc font người dùng tải lên (asset `font`) |
-| **Cỡ và dòng** | `size`, `letter_spacing` (khoảng cách ký tự), `line_height` (khoảng cách dòng), `align` (`left`, `center`, `right`), `max_width` (0–1, dài hơn thì tự xuống dòng), `case` (`upper` IN HOA, `lower`, `none`) | |
-| **Màu chữ** (`fill`) | `{type: "solid", color}` · `{type: "gradient", colors[], angle}` (chuyển màu) · `{type: "texture", image}` (lấy ảnh làm "ruột" chữ, ví dụ vân gỗ, kim tuyến) | |
-| **Viền** (`strokes`) | Tối đa 3 lớp viền, mỗi lớp `{color, width}`; lớp sau nằm ngoài lớp trước | Viền nhiều lớp tạo chữ kiểu sticker hoặc truyện tranh |
-| **Bóng** (`shadows`) | Nhiều bóng, mỗi bóng `{color, offset_x, offset_y, blur}` | Bóng lệch không mờ tạo chữ kiểu retro |
-| **Phát sáng** (`glow`) | `{color, radius, amount}` | Chữ neon |
-| **Nổi khối** (`extrude`) | `{depth, color, angle}` | Chữ 3D giả, có "thân" dày |
-| **Uốn chữ** (`warp`) | `type`: `none`, `arc` (cong vòm), `wave` (lượn sóng), `bulge` (phồng giữa), `circle` (chạy vòng tròn); `amount` | |
-| **Hộp nền** (`background`) | `{color, padding, radius}` | Ô màu sau chữ, dùng cho phụ đề hoặc tiêu đề |
-| **Karaoke** | `color_after`, `fill_mode` (`wipe` tô dần, `per_syllable` đổi từng chữ) | Dùng cho lớp `lyrics` |
-
-### Thư viện preset chữ (SDK cung cấp, nhóm core quản lý)
-
-| Preset | Trông như thế nào |
-|---|---|
-| `classic_white` | Trắng, viền đen mảnh, bóng nhẹ; đọc rõ trên mọi nền |
-| `karaoke_blue` | Trắng, đổi xanh khi hát tới (kiểu karaoke quen thuộc) |
-| `neon_pink`, `neon_blue` | Chữ mảnh, phát sáng như đèn neon |
-| `gold_luxury` | Chuyển màu vàng kim, viền nâu, bóng đổ, ánh kim lướt qua |
-| `fire` | Chuyển đỏ – cam – vàng, phát sáng cam |
-| `ice` | Trắng – xanh băng, viền xanh nhạt, lấp lánh |
-| `comic_pop` | Rất đậm, viền đen dày, bóng lệch, kiểu truyện tranh |
-| `sticker` | Viền trắng dày + bóng, như sticker dán |
-| `retro_80s` | Chuyển tím – hồng – cam, kiểu thập niên 80, bóng sọc |
-| `chalk` | Như phấn viết bảng, ruột chữ có vân |
-| `handwriting` | Chữ viết tay mềm mại |
-| `lower_third` | Hộp nền mờ, chữ gọn; dùng cho tên người và chú thích |
-| `tet_red_gold` | Đỏ – vàng ngày Tết, viền vàng, ánh kim |
-
-Người dùng có thể **lưu kiểu chữ** đã chỉnh thành asset `text_style` để dùng lại. Tool `compose_text_art` cũng xuất ra `text_style`.
-
-### Tiếng Việt
-
-- Chữ được dàn trang bằng bộ dàn chữ chuẩn (HarfBuzz qua Skia), nên **dấu tiếng Việt luôn đúng vị trí**, kể cả khi uốn chữ, dàn từng ký tự hay đổi font.
-- Văn bản được chuẩn hóa Unicode (NFC) trước khi vẽ (`mediatool_sdk.vi`).
-- Nếu font thiếu ký tự tiếng Việt, renderer tự dùng font dự phòng và trả `warning` để người dùng biết.
+`type`: exposure, brightness, contrast, saturation, temperature, hue, grayscale, dim, blur. `timing` (tùy chọn) giới hạn thời gian áp dụng; `ramp` (giây) làm hiệu ứng mạnh dần/yếu dần ở hai đầu.
 
 ---
 
-## 9. Kiểm tra và giới hạn
+## 9. Cách engine render
 
-- `compose_*` kiểm tra composition theo schema: tham chiếu asset phải tồn tại, `id` không trùng, mốc thời gian phải giải được (ví dụ dùng `beat` thì phải có `refs.beats`).
-- Giới hạn khuyến nghị cho máy 8 GB: tối đa 200 lớp, tối đa 8 lớp video cùng hiện một lúc ở 1080p.
-- Những thứ tốn công render nhất: chữ dàn từng ký tự với đoạn văn dài, `particles`, `blur` lớn, `motion_blur`. Bản xem trước (`draft`) tự giảm chất lượng các hiệu ứng này.
-
-## 10. Cách render (cho nhóm core)
-
-- **Engine render native (Rust):** `core/crates/engine` dùng **FFmpeg** (`ffmpeg-the-third`) để giải mã và **Skia** (`skia-safe`) để ghép lớp, vẽ chữ nghệ thuật; xuất video bằng FFmpeg (`libx264`, trộn tiếng `amix`). Chi tiết: [ENGINES.md](ENGINES.md).
-- **Phiên bản engine hiện tại (v1)** hỗ trợ: lớp `video`, `image`, `text`, `shape` (`rect`, `circle`, `star`), `audio`; thời gian bằng **giây**; vị trí ghi phẳng `x`, `y`; keyframe cho `x`, `y`, `scale`, `rotation`, `opacity`; animation `in`/`out`/`loop` ở mục 6 (trừ các preset theo từng ký tự); tốc độ `speed` (0.1–5×, tiếng giữ cao độ), `crop`, `flip_h`/`flip_v`, `blend` (17 chế độ Skia), `mask` (rect, ellipse, star, heart, diamond, bars; làm mềm viền, đảo ngược), `background_fill: blur`, `fade_in`/`fade_out` tiếng, easing `bezier` kiểu CSS, transition wipe (`wipe_left/right/up/down`, `circle_open/close`); hiệu ứng `blur`, `dim`, `exposure`, `brightness`, `contrast`, `saturation`, `grayscale`, `temperature`, `hue`; chữ thêm `line_height`, `italic`, `uppercase`; chữ: font, độ đậm, cỡ, màu/gradient, viền, bóng, phát sáng, hộp nền. Mốc thời gian (beat, lời, marker), `bindings`, `group`, `particles`, `mask`, Lottie sẽ bổ sung sau. Mô hình dữ liệu chuẩn: `packages/editor/src/model.ts` và `core/crates/engine/src/model.rs`.
-- **Một engine duy nhất:** bản xem trước (`compose_render_frame`, `compose_render` với `quality = draft`) và bản xuất cuối dùng cùng một engine, nên thấy sao thì xuất ra vậy.
-- **Xem trước nhanh:** `compose_render_frame` chạy ở chế độ *warm* (process giữ sẵn, không phải khởi động lại mỗi lần), để kéo thanh thời gian trên timeline là thấy khung hình gần như ngay.
-- **Xem trước nhanh:** core giữ một luồng render với decoder mở sẵn và phục vụ `POST /v1/preview/frame` (JPEG + khung bao từng lớp để chỉnh trực tiếp trên khung xem trước).
+1. `prepare()`: chuẩn hóa dạng cũ, giải `timing` của lớp (vài lượt, để lớp neo vào lớp khác), rồi giải khoảng của mọi chuyển động (kể cả `repeat`), hiệu ứng, đoạn chữ.
+2. Mỗi khung, mỗi lớp đang hiện: áp keyframe theo đường dẫn → tính trạng thái (vị trí, to nhỏ, xoay, độ rõ, mờ, màu) từ keyframe + chuyển động cả lớp → vẽ nội dung (chữ: từng đơn vị khi có chuyển động theo dòng/từ/chữ cái hoặc uốn chữ) → chuỗi ImageFilter của lớp (màu → mờ → bóng/viền điểm ảnh) → mặt nạ → hòa trộn.
+3. Một đường render duy nhất cho xem trước (`POST /v1/preview/frame`) và xuất video (`compose_render`).

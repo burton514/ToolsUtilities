@@ -13,6 +13,45 @@
 
 ---
 
+## 0. Nguyên tắc: viết một lần, dùng mọi nơi — không làm tool cho từng trường hợp đặc biệt
+
+```
+① Thành phần cơ bản (engine + schema)  ← viết 1 lần: Timing, Fill, Stroke, Shadow, Effect, Anim, keyframe theo đường dẫn
+② Thư viện (dữ liệu)                    ← thêm bằng file: font, style chữ, preset chuyển động, LUT, Lottie, sticker, template
+③ Tool chung (ít, tổng quát)            ← thao tác trên ① và ②
+④ Chuỗi đã lưu / mini app               ← ghép ③ + template ở ② — là thứ người dùng bấm
+```
+
+- Mọi thứ **hiện lên hình** đều là một **Composition** ([COMPOSITION_FORMAT.md](COMPOSITION_FORMAT.md)) và chỉ có **một engine render**. Không tool nào tự vẽ.
+- Thứ gì là **dữ liệu** (kiểu chữ, preset, mẫu, LUT, font) thì để dạng dữ liệu trong thư viện, không viết thành code hay thành tool.
+- Tool chỉ dành cho việc có **thuật toán/model riêng** (tách nhạc, căn lời, tách nền…) hoặc **thao tác tổng quát** trên Composition.
+- "Công cụ" người dùng thấy như *Làm thumbnail*, *Video karaoke*, *Phụ đề TikTok*, *Áp bộ lọc* là **chuỗi tool đã lưu** + template — không có code riêng.
+
+### 0.1 Tool chung cho dựng hình (thay cho các tool riêng lẻ)
+
+| Tool | Input → Output | Làm gì | Thay cho | Trạng thái |
+|---|---|---|---|---|
+| `compose_render` | `Composition` → video / ảnh tĩnh / chuỗi ảnh | Render bằng engine native (Skia + FFmpeg); chất lượng nháp/chuẩn/cao, nền trong suốt, xuất một đoạn | `compose_text_art`, `compose_render_frame`, `karaoke_compose`, `media_burn_subtitle`, render tiêu đề/thumbnail | **Đã có** (video MP4) |
+| `compose_template` | template (Composition có chỗ trống `{{...}}`) + giá trị → `Composition` | Điền mẫu dựng sẵn từ thư viện | `compose_create`, `compose_apply_template`, `title_card`, `video_from_images`, `thumbnail_maker` | Chưa làm |
+| `compose_edit` | `Composition` + danh sách thao tác → `Composition` | Thêm/xóa/sắp lớp, đặt thuộc tính theo đường dẫn, áp style/animation/effect từ thư viện, đặt `timing` | `compose_add_layer`, `compose_edit_layer`, `video_color_grade`, `video_effects`, `video_speed`, `video_reframe`, `image_adjust`, `image_lut` | Chưa làm |
+| `compose_bind` | `Composition` + `TimedData` + template cho từng mục → `Composition` | Mỗi mục dữ liệu có thời gian (dòng lời, từ, âm tiết, beat, cảnh) sinh lớp/chuyển động neo theo `data.start/end` | `compose_from_lyrics`, `karaoke_render_subtitle`, `subtitle_style`, `compose_beat_animate`, `video_beat_sync_edit` | Chưa làm |
+
+API dùng chung đã có: `POST /v1/preview/frame` (render một khung + thời gian đã giải), `POST /v1/composition/prepare` (chuẩn hóa dạng cũ + giải mốc thời gian).
+
+### 0.2 Tool tính toán (thuật toán/model riêng) — output là kiểu dữ liệu chung
+
+| Tool | Output | Ghi chú |
+|---|---|---|
+| `segment` | Mặt nạ (ảnh/video) — dùng làm `mask` cho mọi lớp | Tách nền ảnh và video chung một tool (rmbg/u2net qua ONNX, CPU) |
+| `upscale` | Ảnh/video nét hơn | Real-ESRGAN nhẹ qua ONNX, `heavy = true` |
+| `track_motion` | `TimedData` vị trí → gắn cho mọi lớp bám theo | OpenCV CSRT |
+| `library_import` | Mục thư viện (font, style, preset, LUT, Lottie, sticker, template) | Mỗi loại tự khai báo cách kiểm tra (vd font phải đủ dấu tiếng Việt). Thay cho `font_install`, `lottie_import` |
+| `music_beat_track`, `video_scene_detect`, `music_vocal_activity`, `speech_transcribe`, `lyrics_align`, `audio_separate_stems`… | `TimedData` / file | Như danh sách ở mục 2 |
+
+**Kiểu dữ liệu có thời gian thống nhất — `TimedData`:** `{ items: [ { start, end, payload, children? } ] }` (dòng → từ → âm tiết). `Transcript`, `TimedLyrics`, `BeatGrid`, `SceneList`, `TimeRanges` đều là `TimedData` (có thể kèm metadata riêng), nên `compose_bind` chỉ viết một lần cho mọi loại. Beat/cảnh cũng nạp thẳng thành `markers` của Composition để neo thời gian.
+
+---
+
 ## 1. Luồng sản phẩm → tool
 
 ### Luồng B — Karaoke (P0 hoàn toàn)
@@ -135,25 +174,13 @@ nhạc ─► audio_separate_stems (4/6 stems) ─► stems
 | `karaoke_render_subtitle` | P0 | `TimedLyrics` + style → ASS | Sinh phụ đề karaoke: **chữ đổi màu chạy theo từng âm tiết** (`\kf`), 2 dòng so le, hiện trước câu kế tiếp, **chấm đếm ngược** khi sắp vào lời, màn tiêu đề (tên bài, ca sĩ), tách màu theo giọng nam/nữ/song ca (gán tay). Font tiếng Việt kèm theo | Python sinh ASS | < 100 MB |
 | `karaoke_compose` | P0 | nền (video/ảnh) + instrumental + [vocals dẫn] + ASS → MP4 | Ghép thành video karaoke hoàn chỉnh: chọn nền (video gốc, video gốc làm mờ, ảnh, visualizer), giọng dẫn nhỏ (0–30%), preset xuất | FFmpeg + libass | < 800 MB |
 
-### 2.9 Dựng hình, chữ nghệ thuật và animation (`compose_*`)
+### 2.9 Dựng hình, chữ nghệ thuật và animation
 
-Nhóm này làm việc trên **composition**: bản dựng nhiều lớp (video, ảnh, chữ, hình, sticker, lời, visualizer), mỗi lớp có **giờ hiện** (theo giây hoặc theo mốc: phách, câu hát, điệp khúc), vị trí, **chữ nghệ thuật**, **animation** (xuất hiện, biến mất, lặp, chạy từng ký tự, keyframe tự tạo, nhảy theo nhạc). Đặc tả: [COMPOSITION_FORMAT.md](COMPOSITION_FORMAT.md).
+Toàn bộ nhóm này **gộp vào 4 tool chung** ở mục 0.1 (`compose_render`, `compose_template`, `compose_edit`, `compose_bind`). Chữ nghệ thuật, chuyển động theo dòng/từ/chữ cái, nhảy theo beat, karaoke tô màu theo âm tiết, tiêu đề, thumbnail… đều là **dữ liệu** (Composition + thư viện), không phải tool riêng. Đặc tả: [COMPOSITION_FORMAT.md](COMPOSITION_FORMAT.md).
 
-| ID | Ưu tiên | Input → Output | Chức năng | Công nghệ | RAM |
-|---|---|---|---|---|---|
-| `compose_create` | P0 | [video/audio + beats + lyrics] → `Composition` | Tạo bản dựng: khung, fps, thời lượng, nền; gắn sẵn beat/lời/đoạn để hẹn giờ theo mốc | SDK `compose` | < 100 MB |
-| `compose_add_layer` | P0 | `Composition` + [nguồn] → `Composition` | Thêm lớp chữ, ảnh, video, hình, sticker, visualizer, lời, lớp chỉnh màu; hẹn giờ, vị trí, kiểu chữ, animation | SDK `compose` | < 100 MB |
-| `compose_edit_layer` | P0 | `Composition` → `Composition` | Sửa, xóa, nhân bản, dời giờ, đổi thứ tự lớp; thêm **keyframe** (chuyển động tự tạo) | SDK `compose` | < 100 MB |
-| `compose_from_lyrics` | P0 | `TimedLyrics` [+ `BeatGrid`] → `Composition` | Video lời bài hát / karaoke nghệ thuật: từng câu xuất hiện có hiệu ứng, chữ đang hát nảy/sáng/to lên, nhấn chữ, bố cục ngẫu nhiên | SDK `compose` | < 200 MB |
-| `compose_render_frame` | P0 | `Composition` → ảnh | Xem thử một khung hình (chạy *warm*, phản hồi nhanh khi kéo timeline) | Skia | < 800 MB |
-| `compose_render` | P0 | `Composition` → video | Xuất video: chất lượng xem thử/chuẩn/cao, xuất một đoạn, nền trong suốt, motion blur | Skia + FFmpeg (PyAV) | 0.8–1.5 GB |
-| `compose_beat_animate` | P1 | `Composition` + `BeatGrid` → `Composition` | Cho lớp hoặc cả khung nhảy theo nhịp: pulse, zoom punch, rung, chớp, đổi màu; chỉ trong một đoạn nếu muốn | SDK `compose` | < 100 MB |
-| `compose_apply_template` | P1 | `Composition` [+ ảnh] → `Composition` | Mẫu dựng sẵn: màn tiêu đề, lower third, intro logo, outro, đếm ngược, trích dẫn | SDK `compose` | < 100 MB |
-| `compose_text_art` | P1 | text [+ font, texture] → ảnh/video trong suốt + `TextStyle` | Thiết kế chữ nghệ thuật riêng: chuyển màu, nhiều lớp viền, bóng, phát sáng, nổi khối 3D, uốn cong; lưu kiểu chữ để dùng lại | Skia | < 500 MB |
+Các tool ở 2.7 (`video_color_grade`, `video_effects`, `video_speed`, `video_reframe`, `video_from_images`) và 2.8 (`karaoke_render_subtitle`, `karaoke_compose`) cùng `media_burn_subtitle` **không viết thành tool riêng** nữa: chúng là chuỗi đã lưu dùng `compose_edit` / `compose_bind` / `compose_template` + `compose_render`.
 
-`video_overlay` (bản cũ) được thay bằng `compose_add_layer` + `compose_render`.
-
-**Tổng: 48 tool, gồm 26 P0 và 22 P1.**
+**Số tool thật sự phải viết giảm mạnh** nhờ gộp: các tool dựng hình/hiệu ứng/phụ đề ở 2.7–2.9 thành 4 tool chung + chuỗi đã lưu.
 
 ---
 
@@ -216,5 +243,5 @@ Upscale video, nội suy khung hình, xóa nền video, đổi giọng (voice co
 3. **Lời**: `lyrics_import`, `speech_transcribe`, `lyrics_align`, `lyrics_export`
 4. **Karaoke chạy được trọn luồng**: `karaoke_render_subtitle`, `karaoke_compose`, `audio_pitch_shift`, `media_burn_subtitle`
 5. **Video nhạc chạy được trọn luồng**: `audio_mix`, `video_scene_detect`, `video_beat_sync_edit`
-6. **Dựng hình nghệ thuật**: nhóm core làm engine `mediatool_sdk.compose` (Skia) trước, sau đó làm song song `compose_create`, `compose_add_layer`, `compose_edit_layer`, `compose_from_lyrics`, `compose_render_frame`, `compose_render`
+6. **Dựng hình nghệ thuật**: engine native (Rust + Skia + FFmpeg) và `compose_render` **đã có**; tiếp theo `compose_edit`, `compose_template`, `compose_bind`, rồi thư viện (`library_import`) và `segment`
 6. **P1**, chia theo nhóm cho nhiều người làm song song (mỗi tool một thư mục, không đụng nhau)

@@ -34,14 +34,25 @@ impl PreviewService {
                         req = newer;
                     }
                     let t0 = Instant::now();
+                    // chuẩn bị một lần: dùng để render và trả thời gian đã giải cho editor (timeline hiển thị đúng mốc)
+                    let comp = req.comp.prepare();
+                    let resolved: serde_json::Map<String, Value> = comp
+                        .layers
+                        .iter()
+                        .map(|l| {
+                            let anims: Vec<Value> = l.animations.iter().map(|a| json!({ "kind": a.kind, "windows": a.windows })).collect();
+                            (l.id.clone(), json!({ "start": l.start, "duration": l.duration, "animations": anims }))
+                        })
+                        .collect();
                     let res = renderer
-                        .render(&req.comp, req.time, req.width)
+                        .render(&comp, req.time, req.width)
                         .and_then(|mut f| {
                             let jpg = f.jpeg(82)?;
                             Ok(json!({
                                 "image": format!("data:image/jpeg;base64,{}", base64::engine::general_purpose::STANDARD.encode(jpg)),
                                 "width": f.width, "height": f.height, "bounds": f.bounds,
                                 "render_ms": t0.elapsed().as_millis() as u64,
+                                "resolved": resolved,
                             }))
                         })
                         .map_err(|e| format!("{e:#}"));

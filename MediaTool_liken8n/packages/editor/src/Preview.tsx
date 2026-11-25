@@ -2,6 +2,7 @@
 // Zoom/pan, đường gióng (lưới, vùng an toàn, khung TikTok/Reels/Shorts), chọn/kéo/xoay/phóng to lớp trực tiếp.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { LayerBounds, MediaToolClient, PreviewFrame } from "@mediatool/api-client";
+import { Camera, Crosshair, Grid3x3, RectangleHorizontal, Repeat, ZoomIn, ZoomOut } from "lucide-react";
 import { type Platform, useEditor, type EditorStore } from "./store";
 
 // preset zoom theo OpenCut `preview/zoom.ts` (MIT)
@@ -71,7 +72,9 @@ export function Preview({ store, client }: { store: EditorStore; client: MediaTo
         wanted.current = null;
         busy.current = true;
         try {
-          setFrame(await client.previewFrame(w.comp, w.time, w.width));
+          const f = await client.previewFrame(w.comp, w.time, w.width);
+          setFrame(f);
+          if (f.resolved) store.set({ resolved: f.resolved });
           setError(null);
         } catch (e) {
           const msg = (e as Error).message;
@@ -206,12 +209,12 @@ export function Preview({ store, client }: { store: EditorStore; client: MediaTo
           {ZOOM_PRESETS.map((z) => <option key={z} value={z}>{Math.round(z * 100)}%</option>)}
           {view.zoom !== "fit" && !ZOOM_PRESETS.includes(view.zoom) && <option value={view.zoom}>{Math.round(view.zoom * 100)}%</option>}
         </select>
-        <button className="ed-ibtn" title="Phóng to (Ctrl+lăn chuột)" onClick={() => setZoom(scale * ZOOM.step)}>＋</button>
-        <button className="ed-ibtn" title="Thu nhỏ" onClick={() => setZoom(scale / ZOOM.step)}>－</button>
+        <button className="ed-ibtn" title="Phóng to (Ctrl+lăn chuột)" aria-label="Phóng to" onClick={() => setZoom(scale * ZOOM.step)}><ZoomIn size={15} /></button>
+        <button className="ed-ibtn" title="Thu nhỏ" aria-label="Thu nhỏ" onClick={() => setZoom(scale / ZOOM.step)}><ZoomOut size={15} /></button>
         <span className="ed-sep" />
-        <button className={`ed-ibtn ${guides.grid ? "on" : ""}`} title="Lưới 1/3" onClick={() => store.set({ guides: { ...guides, grid: !guides.grid } })}>#</button>
-        <button className={`ed-ibtn ${guides.safe ? "on" : ""}`} title="Vùng an toàn chữ/hành động" onClick={() => store.set({ guides: { ...guides, safe: !guides.safe } })}>▭</button>
-        <button className={`ed-ibtn ${guides.center ? "on" : ""}`} title="Đường tâm" onClick={() => store.set({ guides: { ...guides, center: !guides.center } })}>✛</button>
+        <button className={`ed-ibtn ${guides.grid ? "on" : ""}`} title="Lưới 1/3" onClick={() => store.set({ guides: { ...guides, grid: !guides.grid } })} aria-label="Lưới 1/3"><Grid3x3 size={15} /></button>
+        <button className={`ed-ibtn ${guides.safe ? "on" : ""}`} title="Vùng an toàn chữ/hành động" onClick={() => store.set({ guides: { ...guides, safe: !guides.safe } })} aria-label="Vùng an toàn"><RectangleHorizontal size={15} /></button>
+        <button className={`ed-ibtn ${guides.center ? "on" : ""}`} title="Đường tâm" onClick={() => store.set({ guides: { ...guides, center: !guides.center } })} aria-label="Đường tâm"><Crosshair size={15} /></button>
         <select className="mt-select ed-mini" value={guides.platform} title="Khung giao diện nền tảng"
           onChange={(e) => store.set({ guides: { ...guides, platform: e.target.value as Platform } })}>
           <option value="none">Không khung</option>
@@ -223,8 +226,8 @@ export function Preview({ store, client }: { store: EditorStore; client: MediaTo
         <select className="mt-select ed-mini" value={rate} title="Tốc độ phát xem trước" onChange={(e) => store.set({ rate: Number(e.target.value) })}>
           {[0.25, 0.5, 1, 1.5, 2].map((r) => <option key={r} value={r}>{r}×</option>)}
         </select>
-        <button className={`ed-ibtn ${loop ? "on" : ""}`} title="Phát lặp" onClick={() => store.set({ loop: !loop })}>⟲</button>
-        <button className="ed-ibtn" title="Chụp khung hình (độ phân giải đầy đủ)" onClick={() => void snapshot()}>📷</button>
+        <button className={`ed-ibtn ${loop ? "on" : ""}`} title="Phát lặp" aria-label="Phát lặp" onClick={() => store.set({ loop: !loop })}><Repeat size={15} /></button>
+        <button className="ed-ibtn" title="Chụp khung hình (độ phân giải đầy đủ)" aria-label="Chụp khung hình" onClick={() => void snapshot()}><Camera size={15} /></button>
       </div>
 
       <div className={`ed-viewport ${panning ? "panning" : ""}`} ref={viewportRef} onWheel={onWheel}
@@ -242,6 +245,20 @@ export function Preview({ store, client }: { store: EditorStore; client: MediaTo
             store.select(hit?.id ?? null, e.shiftKey || e.ctrlKey || e.metaKey);
           }}>
           {frame ? <img src={frame.image} alt="" draggable={false} /> : <div className="ed-dim ed-center">Đang render…</div>}
+          {(() => {
+            if (!comp.layers.length) return <div className="ed-stage-empty"><b>Chưa có gì để xem</b><span>Bấm một video, ảnh hoặc nhạc ở Thư viện bên trái để thêm vào timeline.</span></div>;
+            const active = comp.layers.some((l) => !l.hidden && l.type !== "audio" && time >= l.start && time < l.start + l.duration);
+            if (active) return null;
+            const visual = comp.layers.filter((l) => !l.hidden && l.type !== "audio");
+            const next = visual.filter((l) => l.start > time).sort((a, b) => a.start - b.start)[0] ?? visual.sort((a, b) => a.start - b.start)[0];
+            return (
+              <div className="ed-stage-empty">
+                <b>Không có hình tại {time.toFixed(1)} giây</b>
+                <span>Kéo vạch đỏ trên timeline tới một clip, hoặc bấm nút dưới.</span>
+                {next && <button className="mt-btn small primary" onClick={() => store.set({ time: next.start + 0.01 })}>Tới clip “{next.name}”</button>}
+              </div>
+            );
+          })()}
 
           {guides.grid && (
             <svg className="ed-guides" viewBox="0 0 3 3" preserveAspectRatio="none">

@@ -147,6 +147,12 @@ pub fn fit_within(w: u32, h: u32, max_w: u32, max_h: u32) -> (u32, u32) {
 
 /// Dải ảnh thu nhỏ (filmstrip) cho timeline: `count` khung đều nhau, cao `height` px, ghép ngang thành 1 JPEG (Skia).
 pub fn filmstrip(path: &str, count: u32, height: u32) -> Result<Vec<u8>> {
+    filmstrip_range(path, count, height, None)
+}
+
+/// Như `filmstrip` nhưng chỉ lấy khung trong đoạn [from, to) giây của file — timeline zoom sâu tải từng đoạn đang thấy.
+/// Khung thứ i lấy tại from + (to-from)·(i+0.5)/count.
+pub fn filmstrip_range(path: &str, count: u32, height: u32, range: Option<(f64, f64)>) -> Result<Vec<u8>> {
     use skia_safe::{surfaces, AlphaType, ColorType, Data, EncodedImageFormat, ImageInfo, Paint, Rect};
     let mut v = VideoSource::open(path)?;
     let count = count.clamp(1, 60);
@@ -154,8 +160,13 @@ pub fn filmstrip(path: &str, count: u32, height: u32) -> Result<Vec<u8>> {
     let tw = ((v.width as f64 / v.height.max(1) as f64) * th as f64).round().max(8.0) as u32;
     let mut surface = surfaces::raster_n32_premul(((tw * count) as i32, th as i32)).ok_or_else(|| anyhow!("Không tạo được surface"))?;
     let dur = if v.duration > 0.0 { v.duration } else { 1.0 };
+    let (from, to) = match range {
+        Some((a, b)) if b > a => (a.clamp(0.0, dur), b.clamp(0.0, dur)),
+        _ => (0.0, dur),
+    };
+    let span = (to - from).max(1e-3);
     for i in 0..count {
-        let t = dur * (i as f64 + 0.5) / count as f64;
+        let t = (from + span * (i as f64 + 0.5) / count as f64).min((dur - 0.01).max(0.0));
         let f = v.frame_at(t, tw, th)?;
         let info = ImageInfo::new((f.width as i32, f.height as i32), ColorType::RGBA8888, AlphaType::Unpremul, None);
         if let Some(img) = skia_safe::images::raster_from_data(&info, Data::new_copy(&f.data), f.stride) {
@@ -163,7 +174,7 @@ pub fn filmstrip(path: &str, count: u32, height: u32) -> Result<Vec<u8>> {
         }
     }
     #[allow(deprecated)]
-    let data = surface.image_snapshot().encode_to_data_with_quality(EncodedImageFormat::JPEG, 70).ok_or_else(|| anyhow!("Không mã hóa JPEG"))?;
+    let data = surface.image_snapshot().encode_to_data_with_quality(EncodedImageFormat::JPEG, 82).ok_or_else(|| anyhow!("Không mã hóa JPEG"))?;
     Ok(data.as_bytes().to_vec())
 }
 

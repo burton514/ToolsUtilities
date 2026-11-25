@@ -18,7 +18,7 @@ export function AssetPreview({ client, asset, compact }: { client: MediaToolClie
     };
   }, [url, isText]);
   const h = compact ? 120 : 360;
-  if (asset.format === "video") return <video src={url} controls style={{ maxWidth: "100%", maxHeight: h }} />;
+  if (asset.format === "video") return <video src={url} poster={client.thumbnailUrl(asset.asset_id)} controls preload="metadata" style={{ maxWidth: "100%", maxHeight: h }} />;
   if (asset.format === "audio") return <audio src={url} controls style={{ width: "100%" }} />;
   if (asset.format === "image") return <img src={url} alt={asset.filename} style={{ maxWidth: "100%", maxHeight: h }} />;
   return <pre className="sb-pre" style={{ maxHeight: h }}>{text ?? "Đang tải…"}</pre>;
