@@ -1,0 +1,19 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "sharpen"
+name = "Làm nét"
+category = "stylize"
+kind = "effect"
+description = "Làm rõ chi tiết, cạnh."
+sample_radius = 3
+order = 6
+
+[[param]]
+key = "strength"
+label = "Độ nét"
+type = "float"
+min = 0
+max = 2
+step = 0.05
+default = 0.6

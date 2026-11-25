@@ -160,9 +160,15 @@ export interface TextStyle {
 /** Đoạn chữ có kiểu riêng; start/end theo vị trí ký tự. */
 export interface Span { start: number; end: number; style: Partial<TextStyle>; timing?: Timing | null }
 
+/** Hiệu ứng có sẵn trong engine. Ngoài ra `type` có thể là id của một gói thư viện (library/effects/<id>). */
+export type BuiltinEffect = "blur" | "dim" | "brightness" | "saturation" | "grayscale" | "contrast" | "exposure" | "temperature" | "hue";
+export const BUILTIN_EFFECTS: BuiltinEffect[] = ["exposure", "brightness", "contrast", "saturation", "temperature", "hue", "grayscale", "dim", "blur"];
 export interface Effect {
-  type: "blur" | "dim" | "brightness" | "saturation" | "grayscale" | "contrast" | "exposure" | "temperature" | "hue";
-  amount: number;
+  type: BuiltinEffect | string;
+  /** có sẵn: mức; gói thư viện: độ mạnh 0..100 (mặc định 100) */
+  amount?: number;
+  /** tham số của gói thư viện */
+  params?: Record<string, number | string>;
   timing?: Timing | null;
   ramp?: number;
 }
@@ -232,6 +238,10 @@ export interface ShapeLayer extends LayerBase {
   fill: Fill;
   corner_radius: number;
 }
+/** Lớp điều chỉnh: không có hình riêng, áp `effects` lên mọi thứ bên dưới trong thời gian của nó (bộ màu, chuyển cảnh…). */
+export interface AdjustLayer extends LayerBase {
+  type: "adjust";
+}
 export interface AudioLayer extends LayerBase {
   type: "audio";
   source: string;
@@ -242,7 +252,7 @@ export interface AudioLayer extends LayerBase {
   muted: boolean;
 }
 
-export type Layer = VideoLayer | ImageLayer | TextLayer | ShapeLayer | AudioLayer;
+export type Layer = VideoLayer | ImageLayer | TextLayer | ShapeLayer | AudioLayer | AdjustLayer;
 
 export interface Composition {
   version: 1;
@@ -305,6 +315,10 @@ export function textLayer(start: number, text = "Chữ nghệ thuật"): TextLay
 }
 export function shapeLayer(start: number, shape: ShapeLayer["shape"] = "rect"): ShapeLayer {
   return { ...base("Hình", start, 4), type: "shape", shape, w: 0.3, h: 0.2, fill: "#2F6FED", corner_radius: 16 };
+}
+/** Lớp điều chỉnh mang một hiệu ứng thư viện (chuyển cảnh: đặt đè lên chỗ cắt). */
+export function adjustLayer(start: number, duration: number, name: string, effect?: Effect): AdjustLayer {
+  return { ...base(name, Math.max(0, start), duration), type: "adjust", effects: effect ? [effect] : [] };
 }
 export function mediaLayer(start: number, asset: { asset_id: string; format: string; filename?: string }, sourceDuration?: number): Layer {
   const src = `asset:${asset.asset_id}`;

@@ -36,6 +36,8 @@
 | `compose_edit` | `Composition` + danh sách thao tác → `Composition` | Thêm/xóa/sắp lớp, đặt thuộc tính theo đường dẫn, áp style/animation/effect từ thư viện, đặt `timing` | `compose_add_layer`, `compose_edit_layer`, `video_color_grade`, `video_effects`, `video_speed`, `video_reframe`, `image_adjust`, `image_lut` | Chưa làm |
 | `compose_bind` | `Composition` + `TimedData` + template cho từng mục → `Composition` | Mỗi mục dữ liệu có thời gian (dòng lời, từ, âm tiết, beat, cảnh) sinh lớp/chuyển động neo theo `data.start/end` | `compose_from_lyrics`, `karaoke_render_subtitle`, `subtitle_style`, `compose_beat_animate`, `video_beat_sync_edit` | Chưa làm |
 
+**Thư viện hiệu ứng (đã có, 47 gói):** bộ màu, phim, glitch, biến dạng, xóa phông xanh, chuyển cảnh… là gói dữ liệu SkSL trong `library/effects/` ([LIBRARY.md](LIBRARY.md)), áp cho mọi lớp hoặc qua lớp điều chỉnh — thay cho `video_color_grade`, `video_effects` và mọi tool "áp bộ lọc".
+
 API dùng chung đã có: `POST /v1/preview/frame` (render một khung + thời gian đã giải), `POST /v1/composition/prepare` (chuẩn hóa dạng cũ + giải mốc thời gian).
 
 ### 0.2 Tool tính toán (thuật toán/model riêng) — output là kiểu dữ liệu chung

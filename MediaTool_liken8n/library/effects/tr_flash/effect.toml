@@ -1,0 +1,10 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "tr_flash"
+name = "Chớp trắng"
+category = "transition"
+kind = "transition"
+description = "Lóe trắng che chỗ cắt."
+sample_radius = 0
+order = 1

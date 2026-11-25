@@ -30,6 +30,7 @@ ENV MEDIATOOL_HOST=0.0.0.0 \
     MEDIATOOL_MINIAPPS=/app/miniapps \
     MEDIATOOL_DATA=/app/data \
     MEDIATOOL_CONFIG=/app/config \
+    MEDIATOOL_LIBRARY=/app/library \
     MEDIATOOL_PYTHON=python3 \
     PYTHONDONTWRITEBYTECODE=1
 WORKDIR /app

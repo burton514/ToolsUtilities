@@ -1,0 +1,10 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "mono_soft"
+name = "Đen trắng dịu"
+category = "look"
+kind = "effect"
+description = "Đen trắng nhẹ nhàng."
+sample_radius = 0
+order = 6

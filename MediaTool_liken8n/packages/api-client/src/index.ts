@@ -137,6 +137,31 @@ export interface PreviewFrame {
   resolved?: Record<string, ResolvedLayer>;
 }
 
+/** Một tham số của gói hiệu ứng (theo effect.toml). */
+export interface EffectParam {
+  key: string;
+  label: string;
+  type: "float" | "color";
+  min: number;
+  max: number;
+  step?: number | null;
+  default: number | string;
+  unit?: string | null;
+  hint?: string | null;
+}
+
+/** Gói hiệu ứng trong thư viện (library/effects/<id>). */
+export interface EffectInfo {
+  id: string;
+  name: string;
+  category: string;
+  kind: "effect" | "transition";
+  description: string;
+  sample_radius: number;
+  order: number;
+  params: EffectParam[];
+}
+
 export interface ResolvedLayer {
   start: number;
   duration: number;
@@ -221,6 +246,9 @@ export class MediaToolClient {
       if (!res.ok) throw await toError(res);
       return res.json() as Promise<PreviewFrame>;
     });
+
+  /** Gói hiệu ứng trong thư viện (tên, nhóm, tham số) — dùng để tự sinh giao diện. */
+  listEffects = () => this.req<{ effects: EffectInfo[]; problems: string[] }>("GET", "/v1/library/effects");
 
   /** Chuẩn hóa bản dựng (dạng cũ → mới) + giải mốc thời gian bằng chính engine render. */
   prepareComposition = <T = unknown>(composition: unknown) => this.req<T>("POST", "/v1/composition/prepare", { composition });

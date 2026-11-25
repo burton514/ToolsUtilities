@@ -1,0 +1,10 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "vibrance"
+name = "Rực rỡ"
+category = "look"
+kind = "effect"
+description = "Tăng độ đậm cho màu nhạt, giữ màu đã đậm."
+sample_radius = 0
+order = 11

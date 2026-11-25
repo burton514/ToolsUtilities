@@ -1,0 +1,10 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "tr_rgb_split"
+name = "Tách màu chuyển cảnh"
+category = "transition"
+kind = "transition"
+description = "Ba kênh màu tách ra rồi nhập lại."
+sample_radius = 45
+order = 10

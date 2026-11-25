@@ -1,16 +1,17 @@
 // Timeline editor: thư viện file · xem trước (engine native) · timeline · thuộc tính. Xuất video qua tool compose_render.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Button, Notice, ProgressBar } from "@mediatool/ui";
-import { isAssetRef, type Asset, type AssetRef, type MediaToolClient } from "@mediatool/api-client";
+import { isAssetRef, type Asset, type AssetRef, type EffectInfo, type MediaToolClient } from "@mediatool/api-client";
 import { Inspector } from "./Inspector";
 import { Preview } from "./Preview";
 import { Timeline } from "./Timeline";
 import {
-  cloneLayer, compEnd, isLegacy, layerEnd, mediaLayer, newComposition, referencedAssets, shapeLayer, splitLayer, textLayer,
+  adjustLayer, cloneLayer, compEnd, isLegacy, layerEnd, mediaLayer, newComposition, referencedAssets, shapeLayer, splitLayer, textLayer,
   type Composition, type Layer,
 } from "./model";
 import { EditorStore, useEditor } from "./store";
-import { ArrowLeft, Copy, ClipboardPaste, Download, FilePlus2, FolderOpen, Music, Pause, Play, Redo2, Upload, Save, Scissors, Shapes, Trash2, Type, Undo2, Video } from "lucide-react";
+import { CATEGORY_LABEL, CATEGORY_TONE, defaultParams, useEffectLibrary } from "./fxlib";
+import { ArrowLeft, Copy, ClipboardPaste, Download, FilePlus2, FolderOpen, Music, Pause, Play, Redo2, Upload, Save, Scissors, Shapes, Sparkles, Trash2, Type, Undo2, Video } from "lucide-react";
 import "./editor.css";
 
 function probeDuration(url: string): Promise<number | undefined> {
@@ -85,10 +86,46 @@ function Library({ store, client }: { store: EditorStore; client: MediaToolClien
     store.apply((c) => ({ ...c, layers: a.format === "video" || a.format === "image" ? [layer, ...c.layers] : [...c.layers, layer] }));
     store.set({ selected: layer.id });
   };
+  const [tab, setTab] = useState<"files" | "effects" | "transitions">("files");
+  const fx = useEffectLibrary(client);
+  /** Thêm hiệu ứng thư viện thành lớp điều chỉnh tại vạch phát (chuyển cảnh: ngắn, căn giữa vạch phát = chỗ cắt). */
+  const addFx = (e: EffectInfo) => {
+    const t = store.state.time;
+    const tr = e.kind === "transition";
+    const layer = adjustLayer(tr ? t - 0.4 : t, tr ? 0.8 : 3, e.name, { type: e.id, amount: 100, params: defaultParams(e) });
+    store.apply((c) => ({ ...c, layers: [...c.layers, layer] }));
+    store.set({ selected: layer.id, selection: [layer.id] });
+  };
+  const groups = [...new Set(fx.filter((e) => (tab === "transitions") === (e.kind === "transition")).map((e) => e.category))];
   return (
     <div className="ed-library">
+      <div className="ed-seg ed-lib-tabs" role="tablist">
+        {([["files", "File"], ["effects", "Hiệu ứng"], ["transitions", "Chuyển cảnh"]] as const).map(([k, lb]) => (
+          <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{lb}</button>
+        ))}
+      </div>
+      {tab !== "files" && (
+        <div className="ed-lib-list">
+          <div className="mt-hint ed-pad">{tab === "transitions" ? "Đặt vạch phát ở chỗ cắt giữa hai clip rồi bấm một chuyển cảnh." : "Bấm để thêm thành lớp điều chỉnh tại vạch phát — áp cho mọi thứ bên dưới. Muốn áp riêng một lớp: tab Hiệu ứng của lớp đó."}</div>
+          {groups.map((g) => (
+            <section key={g} className="ed-fxgroup">
+              <h5>{CATEGORY_LABEL[g] ?? g}</h5>
+              <div className="ed-fxgrid">
+                {fx.filter((e) => e.category === g).map((e) => (
+                  <button key={e.id} className="ed-fxcard" title={e.description} onClick={() => addFx(e)}>
+                    <span className="ed-fxthumb" style={{ background: CATEGORY_TONE[g] ?? "var(--mt-surface-3)" }}><Sparkles size={16} /></span>
+                    <span className="ed-fxname">{e.name}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ))}
+          {!fx.length && <div className="ed-dim ed-pad">Không đọc được thư viện hiệu ứng từ máy chủ.</div>}
+        </div>
+      )}
+      {tab === "files" && <>
       <div className="ed-lib-head">
-        <b>Thư viện</b>
+        <b>File của bạn</b>
         <Button small icon={<Upload size={14} />} loading={busy} onClick={() => fileRef.current?.click()}>{busy ? "Đang tải…" : "Tải lên"}</Button>
         <input ref={fileRef} type="file" hidden accept="video/*,audio/*,image/*" onChange={async (e) => {
           const f = e.target.files?.[0];
@@ -116,6 +153,7 @@ function Library({ store, client }: { store: EditorStore; client: MediaToolClien
         ))}
         {!assets.length && <div className="ed-dim ed-pad">Chưa có file nào. Tải video, nhạc hoặc ảnh lên để bắt đầu.</div>}
       </div>
+      </>}
     </div>
   );
 }

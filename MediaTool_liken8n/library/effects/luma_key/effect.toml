@@ -1,0 +1,37 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "luma_key"
+name = "Xóa nền đen / trắng"
+category = "key"
+kind = "effect"
+description = "Xóa nền đen (khói, lửa, hạt bụi) hoặc nền trắng."
+sample_radius = 0
+order = 2
+
+[[param]]
+key = "threshold"
+label = "Ngưỡng"
+type = "float"
+min = 0
+max = 1
+step = 0.01
+default = 0.12
+
+[[param]]
+key = "softness"
+label = "Mềm viền"
+type = "float"
+min = 0
+max = 0.5
+step = 0.01
+default = 0.1
+
+[[param]]
+key = "invert"
+label = "Xóa nền trắng (0/1)"
+type = "float"
+min = 0
+max = 1
+step = 1
+default = 0

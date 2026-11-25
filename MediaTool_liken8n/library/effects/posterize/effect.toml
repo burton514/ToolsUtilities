@@ -1,0 +1,19 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "posterize"
+name = "Ít màu (poster)"
+category = "stylize"
+kind = "effect"
+description = "Giảm số màu, ra tranh phẳng kiểu poster."
+sample_radius = 0
+order = 3
+
+[[param]]
+key = "levels"
+label = "Số mức màu"
+type = "float"
+min = 2
+max = 12
+step = 1
+default = 4

@@ -1,0 +1,27 @@
+// Gợn sóng — Hình lượn sóng như nhìn qua mặt nước.
+uniform shader image;
+uniform float4 u_rect;    // khung nội dung (x, y, w, h)
+uniform float u_px;       // đơn vị vẽ / 1 px khung 1080
+uniform float u_time;     // giây từ đầu lớp
+uniform float u_progress; // 0..1 trong khoảng áp dụng
+uniform float u_amount;   // độ mạnh 0..1
+
+float hash(float2 q) { return fract(sin(dot(q, float2(12.9898, 78.233))) * 43758.5453); }
+float3 unpm(float4 c) { return c.a > 0.0001 ? c.rgb / c.a : float3(0.0); }
+half4 pm(float3 rgb, float a) { return half4(clamp(rgb, 0.0, 1.0) * a, a); }
+float luma(float3 c) { return dot(c, float3(0.2126, 0.7152, 0.0722)); }
+float3 sat(float3 c, float s) { return mix(float3(luma(c)), c, s); }
+float3 con(float3 c, float k) { return (c - 0.5) * k + 0.5; }
+float2 uvof(float2 p) { return (p - u_rect.xy) / u_rect.zw; }
+float2 pof(float2 uv) { return u_rect.xy + uv * u_rect.zw; }
+float2 center() { return u_rect.xy + u_rect.zw * 0.5; }
+
+uniform float amplitude;
+uniform float frequency;
+uniform float speed;
+half4 main(float2 p) {
+    float2 uv = uvof(p);
+    float dx = sin(uv.y * frequency * 6.28318 + u_time * speed * 6.28318) * amplitude * u_px * u_amount;
+    float dy = cos(uv.x * frequency * 4.0 + u_time * speed * 5.0) * amplitude * 0.4 * u_px * u_amount;
+    return image.eval(p + float2(dx, dy));
+}

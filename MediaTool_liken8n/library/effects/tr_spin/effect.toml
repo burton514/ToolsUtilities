@@ -1,0 +1,10 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "tr_spin"
+name = "Xoay nhòe"
+category = "transition"
+kind = "transition"
+description = "Xoay tròn nhanh qua chỗ cắt."
+sample_radius = 2200
+order = 8

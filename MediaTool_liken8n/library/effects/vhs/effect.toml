@@ -1,0 +1,28 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "vhs"
+name = "Băng VHS"
+category = "film"
+kind = "effect"
+description = "Rung dòng, lem màu, vệt nhiễu của băng video cũ."
+sample_radius = 30
+order = 4
+
+[[param]]
+key = "jitter"
+label = "Rung dòng quét"
+type = "float"
+min = 0
+max = 3
+step = 0.05
+default = 1
+
+[[param]]
+key = "bleed"
+label = "Lem màu"
+type = "float"
+min = 0
+max = 3
+step = 0.05
+default = 1

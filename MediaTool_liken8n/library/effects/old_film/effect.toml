@@ -1,0 +1,19 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "old_film"
+name = "Phim cũ"
+category = "film"
+kind = "effect"
+description = "Nâu cũ, nhấp nháy, vết xước và bụi."
+sample_radius = 0
+order = 5
+
+[[param]]
+key = "scratches"
+label = "Vết xước"
+type = "float"
+min = 0
+max = 3
+step = 0.1
+default = 1

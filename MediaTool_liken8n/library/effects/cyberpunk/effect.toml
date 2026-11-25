@@ -1,0 +1,10 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "cyberpunk"
+name = "Cyberpunk"
+category = "look"
+kind = "effect"
+description = "Hồng tím – xanh neon đêm thành phố."
+sample_radius = 0
+order = 10

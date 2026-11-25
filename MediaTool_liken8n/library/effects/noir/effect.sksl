@@ -1,0 +1,26 @@
+// Đen trắng tương phản — Đen trắng đậm, gắt như phim noir.
+uniform shader image;
+uniform float4 u_rect;    // khung nội dung (x, y, w, h)
+uniform float u_px;       // đơn vị vẽ / 1 px khung 1080
+uniform float u_time;     // giây từ đầu lớp
+uniform float u_progress; // 0..1 trong khoảng áp dụng
+uniform float u_amount;   // độ mạnh 0..1
+
+float hash(float2 q) { return fract(sin(dot(q, float2(12.9898, 78.233))) * 43758.5453); }
+float3 unpm(float4 c) { return c.a > 0.0001 ? c.rgb / c.a : float3(0.0); }
+half4 pm(float3 rgb, float a) { return half4(clamp(rgb, 0.0, 1.0) * a, a); }
+float luma(float3 c) { return dot(c, float3(0.2126, 0.7152, 0.0722)); }
+float3 sat(float3 c, float s) { return mix(float3(luma(c)), c, s); }
+float3 con(float3 c, float k) { return (c - 0.5) * k + 0.5; }
+float2 uvof(float2 p) { return (p - u_rect.xy) / u_rect.zw; }
+float2 pof(float2 uv) { return u_rect.xy + uv * u_rect.zw; }
+float2 center() { return u_rect.xy + u_rect.zw * 0.5; }
+
+float3 grade(float3 c) {
+    float l = smoothstep(0.06, 0.94, luma(c)); return float3(l);
+}
+half4 main(float2 p) {
+    float4 s = image.eval(p);
+    float3 c = unpm(s);
+    return pm(mix(c, grade(c), u_amount), s.a);
+}

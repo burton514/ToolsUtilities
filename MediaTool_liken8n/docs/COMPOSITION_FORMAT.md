@@ -114,6 +114,7 @@ Thời gian đã giải: API `POST /v1/composition/prepare` trả composition k�
 | `text` | `text`, `style` (mục 7), `spans` (rich text) |
 | `shape` | `shape` (rect/circle/star), `w`, `h` (tỉ lệ khung), `fill` (`Fill`), `corner_radius` |
 | `audio` | `source`, `trim_start`, `volume`, `muted` |
+| `adjust` | Lớp điều chỉnh: không có hình riêng, áp `effects` lên mọi thứ **bên dưới** trong thời gian của nó (bộ màu cả đoạn, chuyển cảnh). Xem [LIBRARY.md](LIBRARY.md) |
 
 **Thuộc tính chung của mọi lớp**
 
@@ -251,7 +252,14 @@ Khóa là **đường dẫn thuộc tính**, giá trị là danh sách keyframe 
 { "type": "grayscale", "amount": 100, "timing": { "start": 12, "duration": 2 }, "ramp": 0.3 }
 ```
 
-`type`: exposure, brightness, contrast, saturation, temperature, hue, grayscale, dim, blur. `timing` (tùy chọn) giới hạn thời gian áp dụng; `ramp` (giây) làm hiệu ứng mạnh dần/yếu dần ở hai đầu.
+`type`: loại có sẵn — exposure, brightness, contrast, saturation, temperature, hue, grayscale, dim, blur (`amount` = mức) — **hoặc id của một gói trong thư viện** (hạt phim, VHS, glitch, bộ màu, xóa phông xanh, chuyển cảnh…; `amount` = độ mạnh 0..100, `params` = tham số của gói). Cách viết gói: [LIBRARY.md](LIBRARY.md).
+
+```json
+{ "type": "teal_orange", "amount": 80 }
+{ "type": "chroma_key", "params": { "key": "#00FF00", "similarity": 0.4 } }
+```
+
+`timing` (tùy chọn) giới hạn thời gian áp dụng; `ramp` (giây) làm hiệu ứng mạnh dần/yếu dần ở hai đầu.
 
 ---
 

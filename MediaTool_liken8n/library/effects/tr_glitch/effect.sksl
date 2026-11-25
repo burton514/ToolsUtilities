@@ -1,0 +1,32 @@
+// Glitch chuyển cảnh — Xé hình, lệch màu ngay chỗ cắt.
+uniform shader image;
+uniform float4 u_rect;    // khung nội dung (x, y, w, h)
+uniform float u_px;       // đơn vị vẽ / 1 px khung 1080
+uniform float u_time;     // giây từ đầu lớp
+uniform float u_progress; // 0..1 trong khoảng áp dụng
+uniform float u_amount;   // độ mạnh 0..1
+
+float hash(float2 q) { return fract(sin(dot(q, float2(12.9898, 78.233))) * 43758.5453); }
+float3 unpm(float4 c) { return c.a > 0.0001 ? c.rgb / c.a : float3(0.0); }
+half4 pm(float3 rgb, float a) { return half4(clamp(rgb, 0.0, 1.0) * a, a); }
+float luma(float3 c) { return dot(c, float3(0.2126, 0.7152, 0.0722)); }
+float3 sat(float3 c, float s) { return mix(float3(luma(c)), c, s); }
+float3 con(float3 c, float k) { return (c - 0.5) * k + 0.5; }
+float2 uvof(float2 p) { return (p - u_rect.xy) / u_rect.zw; }
+float2 pof(float2 uv) { return u_rect.xy + uv * u_rect.zw; }
+float2 center() { return u_rect.xy + u_rect.zw * 0.5; }
+
+half4 main(float2 p) {
+    float k = sin(u_progress * 3.14159) * u_amount;
+    float2 uv = uvof(p);
+    float tt = floor(u_progress * 40.0);
+    float by = floor(uv.y * 14.0 + hash(float2(tt, 2.0)) * 4.0);
+    float on = step(1.0 - 0.6 * k, hash(float2(by, tt)));
+    float sh = (hash(float2(by, tt + 3.0)) - 0.5) * 0.3 * u_rect.z * on;
+    float o = 20.0 * u_px * k;
+    float4 r = image.eval(p + float2(sh + o, 0.0));
+    float4 g = image.eval(p + float2(sh, 0.0));
+    float4 b = image.eval(p + float2(sh - o, 0.0));
+    float al = max(g.a, max(r.a, b.a));
+    return pm(float3(unpm(r).r * r.a, unpm(g).g * g.a, unpm(b).b * b.a) / max(al, 0.0001), al);
+}

@@ -1,0 +1,10 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "tr_pixelate"
+name = "Vỡ ô vuông"
+category = "transition"
+kind = "transition"
+description = "Hình vỡ thành ô vuông rồi ghép lại."
+sample_radius = 80
+order = 7

@@ -1,0 +1,26 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "halftone"
+name = "Chấm in báo"
+category = "stylize"
+kind = "effect"
+description = "Ảnh thành chấm tròn như tranh in báo, pop-art."
+sample_radius = 30
+order = 1
+
+[[param]]
+key = "size"
+label = "Cỡ chấm"
+type = "float"
+min = 4
+max = 48
+step = 1
+default = 12
+unit = "px"
+
+[[param]]
+key = "paper"
+label = "Màu giấy"
+type = "color"
+default = "#F5F1E6"

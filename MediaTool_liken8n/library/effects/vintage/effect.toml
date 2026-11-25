@@ -1,0 +1,10 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "vintage"
+name = "Cổ điển"
+category = "look"
+kind = "effect"
+description = "Phai màu, ngả vàng như ảnh cũ."
+sample_radius = 0
+order = 7

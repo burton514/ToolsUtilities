@@ -2,7 +2,9 @@
 // mốc thời gian (TimeRef/Timing). Inspector chỉ ghép các control này lại.
 import { useState, type ReactNode } from "react";
 import { ChevronDown, ChevronRight, Plus, Trash2, ArrowUp, ArrowDown } from "lucide-react";
-import { Field, NumberInput, Select, Slider, TextInput } from "@mediatool/ui";
+import { Field, NumberInput, Select, Slider, TextInput } from "./prop";
+import type { EffectInfo } from "@mediatool/api-client";
+import { CATEGORY_LABEL, defaultParams } from "./fxlib";
 import {
   ANIM_KIND_LABEL, ANIMS, EASES, UNIT_LABEL,
   type Anim, type AnimKind, type AnimUnit, type Composition, type Effect, type Fill, type Shadow, type ShadowKind, type Stop, type Stroke,
@@ -10,18 +12,24 @@ import {
 } from "./model";
 
 // ------------------------------------------------------------------ màu
-/** Ô màu có độ trong suốt (#RRGGBBAA). */
+/** Ô màu: ô xem màu (bấm để chọn) + mã màu gõ được + độ rõ (%). Lưu dạng #RRGGBB hoặc #RRGGBBAA. */
 export function ColorInput({ label, value, onChange }: { label?: ReactNode; value: string; onChange: (v: string) => void }) {
-  const hex = (value || "#000000").slice(0, 7);
-  const alpha = value?.length === 9 ? parseInt(value.slice(7), 16) / 255 : 1;
+  const v = value || "#000000";
+  const hex = v.slice(0, 7).toUpperCase();
+  const alpha = v.length === 9 ? Math.round((parseInt(v.slice(7), 16) / 255) * 100) : 100;
+  const withAlpha = (h: string, a: number) => (a >= 100 ? h : h + Math.round((a / 100) * 255).toString(16).padStart(2, "0").toUpperCase());
+  const [draft, setDraft] = useState<string | null>(null);
   const el = (
-    <div className="ed-colorrow">
-      <input type="color" className="ed-color" value={hex} onChange={(e) => onChange(e.target.value + (alpha < 1 ? value.slice(7) : ""))} />
-      <input className="ed-alpha" type="range" min={0} max={100} value={Math.round(alpha * 100)} title={`Độ rõ ${Math.round(alpha * 100)}%`}
-        onChange={(e) => {
-          const a = Number(e.target.value) / 100;
-          onChange(a >= 1 ? hex : hex + Math.round(a * 255).toString(16).padStart(2, "0").toUpperCase());
-        }} />
+    <div className="ip-color">
+      <label className="ip-swatch" style={{ background: v.length === 9 ? `linear-gradient(${v},${v}), repeating-conic-gradient(#888 0 25%, #ccc 0 50%) 50%/8px 8px` : v }} title="Chọn màu">
+        <input type="color" value={hex.toLowerCase()} onChange={(e) => onChange(withAlpha(e.target.value.toUpperCase(), alpha))} />
+      </label>
+      <input className="ip-hex" value={draft ?? hex.slice(1)} maxLength={6} aria-label="Mã màu"
+        onFocus={(e) => { setDraft(hex.slice(1)); requestAnimationFrame(() => e.target.select()); }}
+        onChange={(e) => setDraft(e.target.value.replace(/[^0-9a-fA-F]/g, ""))}
+        onBlur={() => { if (draft && /^[0-9a-fA-F]{6}$/.test(draft)) onChange(withAlpha("#" + draft.toUpperCase(), alpha)); setDraft(null); }}
+        onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
+      <NumberInput value={alpha} min={0} max={100} step={1} unit="%" onChange={(a) => onChange(withAlpha(hex, Math.max(0, Math.min(100, a))))} />
     </div>
   );
   return label ? <Field label={label}>{el}</Field> : el;
@@ -65,10 +73,10 @@ export function FillEditor({ label, value, onChange, images }: { label: ReactNod
   return (
     <div className="ed-fill">
       <div className="ed-fill-head">
-        <span className="mt-label">{label}</span>
+        <span className="ip-label-text">{label}</span>
         <span className="ed-swatch" style={{ background: fillCss(value) }} />
       </div>
-      <div className="ed-seg">
+      <div className="ip-seg">
         {([["solid", "Màu"], ["linear", "Thẳng"], ["radial", "Tròn"], ["sweep", "Vòng"], ["image", "Ảnh"]] as [FillType, string][]).map(([k, l]) => (
           <button key={k} className={t === k ? "on" : ""} onClick={() => setType(k)}>{l}</button>
         ))}
@@ -130,8 +138,8 @@ export function ListEditor<T>({ title, items, onChange, make, render, summary, h
   return (
     <div className="ed-list">
       <div className="ed-list-head">
-        <span className="mt-label">{title}</span>
-        <button className="ed-addbtn" onClick={() => { onChange([...items, make()]); setOpen(items.length); }}><Plus size={13} /> {addLabel}</button>
+        <span className="ed-list-title">{title}</span>
+        <button className="ip-icon add" title={addLabel} aria-label={addLabel} onClick={() => { onChange([...items, make()]); setOpen(items.length); }}><Plus size={15} /></button>
       </div>
       {hint && !items.length && <div className="mt-hint">{hint}</div>}
       {items.map((it, i) => (
@@ -297,7 +305,7 @@ export function AnimList({ items, onChange, comp, selfId, isText, layerSpan }: {
       summary={(a) => <><b className={`ed-kind k-${a.kind}`}>{ANIM_KIND_LABEL[a.kind]}</b> {ANIMS.find((x) => x.id === a.preset && x.kind === a.kind)?.label ?? a.preset}{a.unit && a.unit !== "layer" ? ` · ${UNIT_LABEL[a.unit]}` : ""}{a.timing ? " · ⏱" : ""}</>}
       render={(a, set) => (
         <>
-          <div className="ed-seg">
+          <div className="ip-seg">
             {(Object.keys(ANIM_KIND_LABEL) as AnimKind[]).map((k) => (
               <button key={k} className={a.kind === k ? "on" : ""} onClick={() => set({ kind: k, preset: ANIMS.find((x) => x.kind === k)!.id, duration: k === "loop" ? null : a.duration ?? 0.5 })}>{ANIM_KIND_LABEL[k]}</button>
             ))}
@@ -344,18 +352,36 @@ export const EFFECTS: { type: Effect["type"]; label: string; min: number; max: n
   { type: "grayscale", label: "Đen trắng", min: 0, max: 100 }, { type: "dim", label: "Làm tối", min: 0, max: 100 }, { type: "blur", label: "Làm mờ", min: 0, max: 100 },
 ];
 
-export function EffectList({ items, onChange, comp, selfId, layerSpan }: { items: Effect[]; onChange: (v: Effect[], merge?: string) => void; comp: Composition; selfId: string; layerSpan: [number, number] }) {
+/** Danh sách hiệu ứng của một lớp: chỉnh màu có sẵn + mọi gói trong thư viện (tham số tự sinh từ effect.toml). */
+export function EffectList({ items, onChange, comp, selfId, layerSpan, library }: {
+  items: Effect[]; onChange: (v: Effect[], merge?: string) => void; comp: Composition; selfId: string; layerSpan: [number, number]; library: EffectInfo[];
+}) {
+  const pkg = (t: string) => library.find((x) => x.id === t);
+  const label = (t: string) => EFFECTS.find((x) => x.type === t)?.label ?? pkg(t)?.name ?? t;
+  const options = [
+    ...EFFECTS.map((x) => ({ value: x.type as string, label: `Chỉnh màu · ${x.label}` })),
+    ...library.map((x) => ({ value: x.id, label: `${CATEGORY_LABEL[x.category] ?? x.category} · ${x.name}` })),
+  ];
   return (
-    <ListEditor<Effect> title="Hiệu ứng màu" items={items} onChange={onChange} addLabel="Thêm hiệu ứng"
-      hint="Chỉnh màu, làm mờ… — có thể chỉ áp trong một khoảng thời gian (ví dụ đen trắng 2 giây)."
+    <ListEditor<Effect> title="Hiệu ứng" items={items} onChange={onChange} addLabel="Thêm hiệu ứng"
+      hint="Chỉnh màu, bộ màu điện ảnh, hạt phim, glitch, xóa phông xanh… — có thể chỉ áp trong một khoảng thời gian."
       make={() => ({ type: "brightness", amount: 20 })}
-      summary={(e) => <>{EFFECTS.find((x) => x.type === e.type)?.label ?? e.type} {e.amount}{e.timing ? " · ⏱" : ""}</>}
+      summary={(e) => <>{label(e.type)}{e.amount != null && !pkg(e.type) ? ` ${e.amount}` : ""}{e.timing ? " · ⏱" : ""}</>}
       render={(e, set) => {
-        const meta = EFFECTS.find((x) => x.type === e.type)!;
+        const meta = EFFECTS.find((x) => x.type === e.type);
+        const p = pkg(e.type);
         return (
           <>
-            <Select label="Loại" value={e.type} options={EFFECTS.map((x) => ({ value: x.type, label: x.label }))} onChange={(type) => set({ type })} />
-            <Slider label="Mức" value={e.amount} min={meta.min} max={meta.max} onChange={(amount) => set({ amount }, "amt")} />
+            <Select label="Loại" value={e.type} options={options}
+              onChange={(type) => { const np = pkg(type); set(np ? { type, amount: 100, params: defaultParams(np) } : { type, amount: 20, params: undefined }); }} />
+            {meta && <Slider label="Mức" value={e.amount ?? 0} min={meta.min} max={meta.max} onChange={(amount) => set({ amount }, "amt")} />}
+            {p && (
+              <>
+                {p.description && <div className="mt-hint">{p.description}</div>}
+                <Slider label="Độ mạnh" value={e.amount ?? 100} min={0} max={100} unit="%" onChange={(amount) => set({ amount }, "amt")} />
+                <PackageParams info={p} value={e.params ?? {}} onChange={(params, m) => set({ params }, m)} />
+              </>
+            )}
             <SubFold title="Thời gian áp dụng" open={!!e.timing}>
               <TimingEditor value={e.timing} comp={comp} selfId={selfId} defaults={{ start: layerSpan[0], end: layerSpan[1] }} onChange={(timing) => set({ timing })} />
               <Slider label="Mạnh/yếu dần (giây)" value={e.ramp ?? 0} min={0} max={3} step={0.05} onChange={(ramp) => set({ ramp }, "ramp")} />
@@ -364,6 +390,21 @@ export function EffectList({ items, onChange, comp, selfId, layerSpan }: { items
           </>
         );
       }} />
+  );
+}
+
+/** Giao diện tham số tự sinh từ effect.toml (số → thanh trượt, màu → ô màu). */
+export function PackageParams({ info, value, onChange }: { info: EffectInfo; value: Record<string, number | string>; onChange: (v: Record<string, number | string>, merge?: string) => void }) {
+  return (
+    <>
+      {info.params.map((pp) => {
+        const v = value[pp.key] ?? pp.default;
+        return pp.type === "color"
+          ? <ColorInput key={pp.key} label={pp.label} value={String(v)} onChange={(c) => onChange({ ...value, [pp.key]: c }, `pp-${pp.key}`)} />
+          : <Slider key={pp.key} label={pp.label} value={Number(v)} min={pp.min} max={pp.max} step={pp.step ?? (pp.max - pp.min) / 100} unit={pp.unit ?? undefined} hint={pp.hint ?? undefined}
+              onChange={(n) => onChange({ ...value, [pp.key]: n }, `pp-${pp.key}`)} />;
+      })}
+    </>
   );
 }
 

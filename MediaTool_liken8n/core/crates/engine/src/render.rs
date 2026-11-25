@@ -128,6 +128,41 @@ fn set_path(v: &mut Value, path: &str, val: Value) {
     }
 }
 
+const BUILTIN_EFFECTS: &[&str] = &["dim", "exposure", "brightness", "contrast", "saturation", "grayscale", "temperature", "hue", "blur"];
+
+/// Chuỗi filter hiệu ứng của một lớp — DÙNG CHUNG cho lớp thường và lớp điều chỉnh:
+/// màu (gộp một ma trận) → mờ → các gói thư viện theo thứ tự.
+/// `rect`: khung nội dung theo tọa độ vẽ; `px`: đơn vị vẽ / 1 px khung 1080.
+fn effect_chain(l: &Layer, st: &State, t: f64, rect: Rect, px: f32) -> Option<skia_safe::ImageFilter> {
+    let amount = |k: &str| l.effects.iter().filter(|e| e.kind == k).map(|e| e.amount.unwrap_or(0.0) * effect_weight(e, t)).sum::<f64>() as f32;
+    let mut filter = effect_matrix(&amount, st.hue as f32).and_then(|m| image_filters::color_filter(color_filters::matrix(&m, None), None, None));
+    let blur = amount("blur") as f64 * 0.4 + st.blur;
+    if blur > 0.05 {
+        let sigma = (blur * px as f64) as f32;
+        filter = image_filters::blur((sigma, sigma), TileMode::Decal, filter, None);
+    }
+    let lib = crate::library::get();
+    for e in l.effects.iter().filter(|e| !BUILTIN_EFFECTS.contains(&e.kind.as_str())) {
+        let Some(pkg) = lib.effects.get(&e.kind) else { continue };
+        let w = effect_weight(e, t);
+        if w <= 0.0 {
+            continue;
+        }
+        let (a, b) = e.window.unwrap_or((l.start, l.end()));
+        let strength = e.amount.unwrap_or(100.0);
+        let inputs = crate::library::Inputs {
+            rect: [rect.left, rect.top, rect.width(), rect.height()],
+            px,
+            time: (t - l.start) as f32,
+            progress: ((t - a) / (b - a).max(1e-6)).clamp(0.0, 1.0) as f32,
+            amount: ((strength / 100.0) * w).clamp(0.0, 1.0) as f32,
+            params: &e.params,
+        };
+        filter = pkg.filter(&inputs, filter).or(None);
+    }
+    filter
+}
+
 /// Độ mạnh của hiệu ứng tại t: 0 ngoài khoảng áp dụng, tăng/giảm dần trong `ramp` giây ở hai đầu.
 fn effect_weight(e: &crate::model::Effect, t: f64) -> f64 {
     match e.window {
@@ -211,6 +246,16 @@ impl Renderer {
                 let layer = at_time(layer, t);
                 let st = state_at(&layer, t);
                 if st.opacity <= 0.001 {
+                    continue;
+                }
+                if matches!(layer.kind, LayerKind::Adjust {}) {
+                    // Lớp điều chỉnh: lọc lại mọi thứ đã vẽ bên dưới (backdrop), trộn theo độ rõ của lớp
+                    if let Some(f) = effect_chain(&layer, &st, t, Rect::from_wh(cw, ch), ch / 1080.0) {
+                        let mut p = Paint::default();
+                        p.set_alpha_f(st.opacity as f32);
+                        canvas.save_layer(&SaveLayerRec::default().backdrop(&f).paint(&p));
+                        canvas.restore();
+                    }
                     continue;
                 }
                 self.preload_fills(&layer)?;
@@ -306,14 +351,8 @@ impl Renderer {
         };
         let content_rect = Rect::from_xywh(-content.0 / 2.0, -content.1 / 2.0, content.0, content.1);
 
-        // Chuỗi filter của lớp: màu → mờ → bóng/viền điểm ảnh (giống nhau cho mọi loại lớp)
-        let amount = |k: &str| l.effects.iter().filter(|e| e.kind == k).map(|e| e.amount * effect_weight(e, t)).sum::<f64>() as f32;
-        let mut filter = effect_matrix(&amount, st.hue as f32).and_then(|m| image_filters::color_filter(color_filters::matrix(&m, None), None, None));
-        let blur = amount("blur") as f64 * 0.4 + st.blur;
-        if blur > 0.05 {
-            let sigma = (blur * ch as f64 / 1080.0) as f32;
-            filter = image_filters::blur((sigma, sigma), TileMode::Decal, filter, None);
-        }
+        // Chuỗi filter của lớp: hiệu ứng (màu, mờ, gói thư viện) → bóng/viền điểm ảnh — giống nhau cho mọi loại lớp
+        let mut filter = effect_chain(l, st, t, content_rect, ch / 1080.0);
         let raster_strokes: &[crate::model::Stroke] = match l.kind {
             LayerKind::Video { .. } | LayerKind::Image { .. } => &l.strokes,
             _ => &[],
@@ -365,7 +404,7 @@ impl Renderer {
                 draw_shape(canvas, shape, r, rad, &fill_paint(fill, r, &self.images));
                 Some((w, h))
             }
-            LayerKind::Audio { .. } => None,
+            LayerKind::Audio { .. } | LayerKind::Adjust {} => None,
         };
         canvas.restore(); // lật
 

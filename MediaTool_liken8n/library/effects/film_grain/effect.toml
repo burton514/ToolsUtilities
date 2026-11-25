@@ -1,0 +1,29 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "film_grain"
+name = "Hạt phim"
+category = "film"
+kind = "effect"
+description = "Nhiễu hạt chuyển động như phim nhựa."
+sample_radius = 0
+order = 1
+
+[[param]]
+key = "size"
+label = "Cỡ hạt"
+type = "float"
+min = 0.5
+max = 5
+step = 0.1
+default = 1.4
+unit = "px"
+
+[[param]]
+key = "strength"
+label = "Độ rõ hạt"
+type = "float"
+min = 0
+max = 1
+step = 0.01
+default = 0.3

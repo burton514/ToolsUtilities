@@ -1,0 +1,10 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "tr_blur"
+name = "Nhòe mờ"
+category = "transition"
+kind = "transition"
+description = "Nhòe mềm rồi rõ lại."
+sample_radius = 32
+order = 6

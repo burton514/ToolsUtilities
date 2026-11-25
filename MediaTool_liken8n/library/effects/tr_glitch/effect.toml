@@ -1,0 +1,10 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "tr_glitch"
+name = "Glitch chuyển cảnh"
+category = "transition"
+kind = "transition"
+description = "Xé hình, lệch màu ngay chỗ cắt."
+sample_radius = 700
+order = 5

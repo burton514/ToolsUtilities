@@ -1,0 +1,20 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "pixelate"
+name = "Ô vuông pixel"
+category = "stylize"
+kind = "effect"
+description = "Hình vỡ thành ô vuông kiểu game 8-bit."
+sample_radius = 100
+order = 2
+
+[[param]]
+key = "size"
+label = "Cỡ ô"
+type = "float"
+min = 2
+max = 96
+step = 1
+default = 18
+unit = "px"

@@ -1,0 +1,30 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "rgb_split"
+name = "Tách màu RGB"
+category = "stylize"
+kind = "effect"
+description = "Ba kênh màu lệch nhau (quang sai)."
+sample_radius = 70
+order = 7
+
+[[param]]
+key = "offset"
+label = "Độ lệch"
+type = "float"
+min = 0
+max = 60
+step = 0.5
+default = 10
+unit = "px"
+
+[[param]]
+key = "angle"
+label = "Hướng"
+type = "float"
+min = 0
+max = 360
+step = 1
+default = 0
+unit = "°"

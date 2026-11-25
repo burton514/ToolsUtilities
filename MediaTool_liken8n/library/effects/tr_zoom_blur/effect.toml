@@ -1,0 +1,10 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "tr_zoom_blur"
+name = "Zoom nhòe"
+category = "transition"
+kind = "transition"
+description = "Phóng nhanh vào giữa kèm nhòe chuyển động."
+sample_radius = 900
+order = 3

@@ -1,0 +1,10 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "teal_orange"
+name = "Cam – xanh điện ảnh"
+category = "look"
+kind = "effect"
+description = "Vùng tối ngả xanh, vùng sáng ngả cam như phim điện ảnh."
+sample_radius = 0
+order = 1

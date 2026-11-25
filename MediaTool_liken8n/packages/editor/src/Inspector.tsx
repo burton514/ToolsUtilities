@@ -1,8 +1,12 @@
 // Bảng thuộc tính của lớp đang chọn, chia tab: Lớp · Chữ · Kiểu · Chuyển động · Hiệu ứng.
 // Chỉ ghép các control dùng chung (controls.tsx) — mọi loại lớp dùng cùng một bộ cho viền, bóng, hiệu ứng, chuyển động.
 import { useEffect, useRef, useState } from "react";
-import { Bold, Italic, Strikethrough, Underline } from "lucide-react";
-import { Button, Field, NumberInput, Section, Select, Slider, TextArea, Toggle } from "@mediatool/ui";
+import {
+  AlignCenter, AlignJustify, AlignLeft, AlignRight, ArrowDownToLine, ArrowUpToLine, Bold, Eye, EyeOff, FlipHorizontal2, FlipVertical2, Image as ImageIcon,
+  Italic, Lock, LockOpen, Music, Palette, Shapes, SlidersHorizontal, Sparkles, Strikethrough, Trash2, Type, Underline, Video, Wand2,
+} from "lucide-react";
+import { Button } from "@mediatool/ui";
+import { Field, NumberInput, Section, Seg, Select, Slider, TextArea, Toggle } from "./prop";
 import type { MediaToolClient } from "@mediatool/api-client";
 import {
   BEZIER_PRESETS, BLEND_MODES, defaultMask, EASES, MASK_SHAPES, newId, retime, SPEED, TEXT_PRESETS, valueAt,
@@ -11,13 +15,14 @@ import {
 } from "./model";
 import { AnimList, ColorInput, EffectList, FillEditor, fillCss, ListEditor, ShadowList, StrokeList, SubFold, TimingEditor } from "./controls";
 import { useEditor, type EditorStore } from "./store";
+import { useEffectLibrary } from "./fxlib";
 
 const PROPS: { prop: AnimProp; label: string; min: number; max: number; step: number }[] = [
   { prop: "x", label: "Vị trí ngang", min: -0.5, max: 1.5, step: 0.005 },
   { prop: "y", label: "Vị trí dọc", min: -0.5, max: 1.5, step: 0.005 },
   { prop: "scale", label: "To nhỏ", min: 0.02, max: 5, step: 0.01 },
-  { prop: "rotation", label: "Xoay (độ)", min: -360, max: 360, step: 1 },
-  { prop: "opacity", label: "Độ rõ (%)", min: 0, max: 100, step: 1 },
+  { prop: "rotation", label: "Xoay", min: -360, max: 360, step: 1 },
+  { prop: "opacity", label: "Độ rõ", min: 0, max: 100, step: 1 },
 ];
 
 const BLEND_LABEL: Record<BlendMode, string> = {
@@ -81,6 +86,7 @@ export function Inspector({ store, client }: { store: EditorStore; client: Media
   const resolved = useEditor(store, (s) => s.resolved);
   const [tab, setTab] = useState<Tab>("layer");
   const [images, setImages] = useState<{ id: string; name: string }[]>([]);
+  const library = useEffectLibrary(client);
   useEffect(() => {
     client.listAssets().then((a) => setImages(a.filter((x) => x.format === "image").map((x) => ({ id: x.id, name: x.filename })))).catch(() => undefined);
   }, [client, sel]);
@@ -88,28 +94,53 @@ export function Inspector({ store, client }: { store: EditorStore; client: Media
   useEffect(() => {
     if (l && tab === "text" && l.type !== "text") setTab("layer");
   }, [l, tab]);
+  // lớp điều chỉnh: mở thẳng tab Hiệu ứng (nội dung chính của nó)
+  useEffect(() => {
+    if (l?.type === "adjust") setTab("effects");
+  }, [sel]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!l) return <div className="ed-inspector"><CanvasSettings store={store} comp={comp} /><div className="ed-dim ed-pad">Chọn một lớp trên timeline hoặc trên khung xem trước (Shift/Ctrl để chọn nhiều).</div></div>;
 
   const up = (patch: Partial<Layer>, merge?: string) => store.updateLayer(l.id, patch, merge);
   const span: [number, number] = [resolved[l.id]?.start ?? l.start, (resolved[l.id]?.start ?? l.start) + (resolved[l.id]?.duration ?? l.duration)];
   const visual = l.type !== "audio";
-  const tabs: { value: Tab; label: string }[] = [
-    { value: "layer", label: "Lớp" },
-    ...(l.type === "text" ? [{ value: "text" as Tab, label: "Chữ" }] : []),
-    ...(visual ? [{ value: "style" as Tab, label: "Kiểu" }, { value: "motion" as Tab, label: "Chuyển động" }, { value: "effects" as Tab, label: "Hiệu ứng" }] : []),
-  ];
+  const adjust = l.type === "adjust";
+  const T = {
+    layer: { label: "Thông số", icon: <SlidersHorizontal size={16} /> }, text: { label: "Chữ", icon: <Type size={16} /> },
+    style: { label: "Kiểu", icon: <Palette size={16} /> }, motion: { label: "Chuyển động", icon: <Wand2 size={16} /> },
+    effects: { label: "Hiệu ứng", icon: <Sparkles size={16} /> },
+  } as const;
+  const order: Tab[] = adjust ? ["effects", "layer", "motion"]
+    : ["layer", ...(l.type === "text" ? ["text" as Tab] : []), ...(visual ? (["style", "motion", "effects"] as Tab[]) : [])];
+  const tabs = order.map((v) => ({ value: v, ...T[v] }));
+  const TypeIcon = { video: Video, image: ImageIcon, text: Type, shape: Shapes, audio: Music, adjust: Sparkles }[l.type];
+  const typeLabel = { video: "Video", image: "Ảnh", text: "Chữ", shape: "Hình", audio: "Âm thanh", adjust: "Lớp điều chỉnh" }[l.type];
   const unitHint = l.type === "text" ? "Theo cỡ chữ 96" : "Pixel theo khung cao 1080";
 
   return (
     <div className="ed-inspector">
       {selection.length > 1 && <div className="ed-multi">{selection.length} lớp đang chọn · đang hiển thị lớp cuối. Kéo trên timeline/khung xem để dời cả nhóm.</div>}
-      <div className="ed-insp-tabs ed-seg" role="tablist">
-        {tabs.map((t) => <button key={t.value} role="tab" aria-selected={tab === t.value} className={tab === t.value ? "on" : ""} onClick={() => setTab(t.value)}>{t.label}</button>)}
+      <div className="ed-insp-top">
+        <div className="ed-insp-head">
+          <span className={`ed-insp-type t-${l.type}`} title={typeLabel}><TypeIcon size={15} /></span>
+          <input className="ed-insp-name" value={l.name} aria-label="Tên lớp" onChange={(e) => up({ name: e.target.value }, "name")} />
+          <button className="ip-icon" title={l.hidden ? "Hiện lớp" : "Ẩn lớp"} aria-label={l.hidden ? "Hiện lớp" : "Ẩn lớp"} onClick={() => up({ hidden: !l.hidden })}>{l.hidden ? <EyeOff size={14} /> : <Eye size={14} />}</button>
+          <button className="ip-icon" title={l.locked ? "Mở khóa" : "Khóa"} aria-label={l.locked ? "Mở khóa" : "Khóa"} onClick={() => up({ locked: !l.locked })}>{l.locked ? <Lock size={14} /> : <LockOpen size={14} />}</button>
+          <button className="ip-icon" title="Đưa lên trên cùng" aria-label="Đưa lên trên cùng" onClick={() => store.apply((c) => ({ ...c, layers: [...c.layers.filter((x) => x.id !== l.id), l] }))}><ArrowUpToLine size={14} /></button>
+          <button className="ip-icon" title="Đưa xuống dưới cùng" aria-label="Đưa xuống dưới cùng" onClick={() => store.apply((c) => ({ ...c, layers: [l, ...c.layers.filter((x) => x.id !== l.id)] }))}><ArrowDownToLine size={14} /></button>
+          <button className="ip-icon danger" title="Xóa lớp" aria-label="Xóa lớp" onClick={() => store.deleteSelected()}><Trash2 size={14} /></button>
+        </div>
+        <div className="ed-insp-tabs" role="tablist">
+          {tabs.map((t) => (
+            <button key={t.value} role="tab" aria-selected={tab === t.value} className={tab === t.value ? "on" : ""} onClick={() => setTab(t.value)}>
+              {t.icon}<span>{t.label}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {tab === "layer" && <LayerTab l={l} up={up} store={store} comp={comp} time={time} span={span} />}
       {tab === "text" && l.type === "text" && <TextTab l={l} up={up} comp={comp} span={span} />}
-      {tab === "style" && visual && (
+      {tab === "style" && visual && !adjust && (
         <>
           {l.type === "text" && (
             <Section title="Kiểu có sẵn">
@@ -141,7 +172,8 @@ export function Inspector({ store, client }: { store: EditorStore; client: Media
       )}
       {tab === "effects" && visual && (
         <Section title="Hiệu ứng">
-          <EffectList items={l.effects ?? []} comp={comp} selfId={l.id} layerSpan={span} onChange={(effects, m) => up({ effects }, m)} />
+          {adjust && <div className="mt-hint">Lớp điều chỉnh áp các hiệu ứng dưới đây lên mọi thứ nằm bên dưới nó trên timeline, trong thời gian của lớp.</div>}
+          <EffectList items={l.effects ?? []} comp={comp} selfId={l.id} layerSpan={span} library={library} onChange={(effects, m) => up({ effects }, m)} />
         </Section>
       )}
     </div>
@@ -152,7 +184,7 @@ export function Inspector({ store, client }: { store: EditorStore; client: Media
 function LayerTab({ l, up, store, comp, time, span }: { l: Layer; up: (p: Partial<Layer>, m?: string) => void; store: EditorStore; comp: Composition; time: number; span: [number, number] }) {
   const local = +(time - l.start).toFixed(3);
   const inside = local >= 0 && local <= l.duration;
-  const visual = l.type !== "audio";
+  const visual = l.type !== "audio" && l.type !== "adjust";
   const media = l.type === "video" || l.type === "image";
   const timed = l.type === "video" || l.type === "audio";
   const setProp = (prop: AnimProp, v: number) => {
@@ -175,25 +207,19 @@ function LayerTab({ l, up, store, comp, time, span }: { l: Layer; up: (p: Partia
   const setCrop = (k: keyof Crop, v: number) => up({ crop: { ...crop, [k]: v } }, `crop-${k}`);
   return (
     <>
-      <Section title="Lớp">
-        <Field label="Tên"><input className="mt-input" value={l.name} onChange={(e) => up({ name: e.target.value }, "name")} /></Field>
+      <Section title="Thời gian">
         {l.timing ? (
           <div className="mt-hint">Đang neo thời gian theo mốc: {span[0].toFixed(2)}s → {span[1].toFixed(2)}s</div>
         ) : (
           <div className="ed-grid2">
-            <NumberInput label="Bắt đầu (giây)" value={l.start} min={0} step={0.1} onChange={(v) => up({ start: Math.max(0, v) }, "start")} />
-            <NumberInput label="Thời lượng (giây)" value={l.duration} min={0.1} step={0.1} onChange={(v) => up({ duration: Math.max(0.1, v) }, "dur")} />
+            <NumberInput label="Bắt đầu" unit="s" value={l.start} min={0} step={0.1} onChange={(v) => up({ start: Math.max(0, v) }, "start")} />
+            <NumberInput label="Thời lượng" unit="s" value={l.duration} min={0.1} step={0.1} onChange={(v) => up({ duration: Math.max(0.1, v) }, "dur")} />
           </div>
         )}
-        <SubFold title="Neo thời gian theo mốc / lớp khác / beat" open={!!l.timing}>
+        <SubFold title="Neo theo mốc, lớp khác, beat" open={!!l.timing}>
           <TimingEditor value={l.timing} comp={comp} selfId={l.id} defaults={{ start: l.start, end: l.start + l.duration }} onChange={(timing) => up({ timing })} />
           {l.timing && <button className="ed-addbtn" onClick={() => up({ timing: null, start: span[0], duration: span[1] - span[0] })}>Bỏ neo (giữ thời gian hiện tại)</button>}
         </SubFold>
-        <div className="ed-row-btns">
-          <Button small onClick={() => store.apply((c) => ({ ...c, layers: [...c.layers.filter((x) => x.id !== l.id), l] }))}>Lên trên cùng</Button>
-          <Button small onClick={() => store.apply((c) => ({ ...c, layers: [l, ...c.layers.filter((x) => x.id !== l.id)] }))}>Xuống dưới cùng</Button>
-          <Button small danger onClick={() => store.deleteSelected()}>Xóa</Button>
-        </div>
       </Section>
       {timed && (
         <Section title="Tốc độ">
@@ -205,23 +231,21 @@ function LayerTab({ l, up, store, comp, time, span }: { l: Layer; up: (p: Partia
         </Section>
       )}
       {visual && (
-        <Section title="Biến đổi · ◆ = keyframe tại vạch phát">
+        <Section title="Biến đổi" onReset={() => up({ x: 0.5, y: 0.5, scale: 1, rotation: 0, opacity: 100, keyframes: {} })}
+          actions={<>
+            <button className={`ip-icon ${l.flip_h ? "on" : ""}`} title="Lật ngang" aria-label="Lật ngang" onClick={() => up({ flip_h: !l.flip_h })}><FlipHorizontal2 size={14} /></button>
+            <button className={`ip-icon ${l.flip_v ? "on" : ""}`} title="Lật dọc" aria-label="Lật dọc" onClick={() => up({ flip_v: !l.flip_v })}><FlipVertical2 size={14} /></button>
+          </>}>
           {PROPS.map(({ prop, label, min, max, step }) => {
             const has = !!l.keyframes?.[prop]?.length;
             const onKf = l.keyframes?.[prop]?.some((k) => Math.abs(k.t - local) <= 0.02);
             const v = valueAt(l, prop, time);
             return (
-              <div key={prop} className="ed-prop">
-                <Slider label={label} value={+v.toFixed(3)} min={min} max={max} step={step} onChange={(nv) => setProp(prop, nv)} />
-                <button className={`ed-kfbtn ${onKf ? "on" : has ? "has" : ""}`} disabled={!inside} title="Thêm/bỏ keyframe tại vạch phát" onClick={() => toggleKf(prop)}>◆</button>
-              </div>
+              <Slider key={prop} label={label} value={+v.toFixed(3)} min={min} max={max} step={step} onChange={(nv) => setProp(prop, nv)}
+                format={prop === "opacity" ? (x) => `${Math.round(x)}%` : prop === "rotation" ? (x) => `${Math.round(x)}°` : prop === "scale" ? (x) => `${Math.round(x * 100)}%` : undefined}
+                trailing={<button className={`ip-kf ${onKf ? "on" : has ? "has" : ""}`} disabled={!inside} title={onKf ? "Bỏ keyframe tại vạch phát" : "Thêm keyframe tại vạch phát"} aria-label="Keyframe" onClick={() => toggleKf(prop)} />} />
             );
           })}
-          <div className="ed-row-btns">
-            <Button small onClick={() => up({ x: 0.5, y: 0.5, scale: 1, rotation: 0, keyframes: {} })}>Đặt lại vị trí</Button>
-            <Button small onClick={() => up({ flip_h: !l.flip_h })}>{l.flip_h ? "✓ " : ""}Lật ngang</Button>
-            <Button small onClick={() => up({ flip_v: !l.flip_v })}>{l.flip_v ? "✓ " : ""}Lật dọc</Button>
-          </div>
         </Section>
       )}
       {media && (
@@ -334,21 +358,25 @@ function TextTab({ l, up, comp, span }: { l: TextLayer; up: (p: Partial<Layer>, 
           <Slider label="Giãn dòng" value={s.line_height ?? 0} min={0} max={3} step={0.05} format={(v) => (v ? v.toFixed(2) : "mặc định")} onChange={(line_height) => set({ line_height }, "lh")} />
           <Slider label="Rộng tối đa" value={s.max_width} min={0.1} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={(max_width) => set({ max_width }, "mw")} />
         </div>
-        <div className="ed-seg">
-          {([["left", "Trái"], ["center", "Giữa"], ["right", "Phải"], ["justify", "Đều"]] as const).map(([a, lb]) => (
-            <button key={a} className={s.align === a ? "on" : ""} onClick={() => set({ align: a })}>{lb}</button>
-          ))}
-        </div>
-        <div className="ed-row-btns">
-          <Button small primary={!!s.italic} onClick={() => set({ italic: !s.italic })}>Nghiêng</Button>
-          <Button small primary={!!s.underline} onClick={() => set({ underline: !s.underline })}>Gạch chân</Button>
-          <Button small primary={!!s.strikethrough} onClick={() => set({ strikethrough: !s.strikethrough })}>Gạch ngang</Button>
-        </div>
+        <Field label="Căn lề">
+          <Seg value={s.align} onChange={(align) => set({ align })} options={[
+            { value: "left", label: <AlignLeft size={14} />, title: "Trái" }, { value: "center", label: <AlignCenter size={14} />, title: "Giữa" },
+            { value: "right", label: <AlignRight size={14} />, title: "Phải" }, { value: "justify", label: <AlignJustify size={14} />, title: "Đều hai bên" },
+          ]} />
+        </Field>
+        <Field label="Kiểu chữ">
+          <div className="ip-seg multi">
+            <button className={s.weight >= 700 ? "on" : ""} title="Đậm" aria-label="Đậm" onClick={() => set({ weight: s.weight >= 700 ? 400 : 800 })}><Bold size={14} /></button>
+            <button className={s.italic ? "on" : ""} title="Nghiêng" aria-label="Nghiêng" onClick={() => set({ italic: !s.italic })}><Italic size={14} /></button>
+            <button className={s.underline ? "on" : ""} title="Gạch chân" aria-label="Gạch chân" onClick={() => set({ underline: !s.underline })}><Underline size={14} /></button>
+            <button className={s.strikethrough ? "on" : ""} title="Gạch ngang" aria-label="Gạch ngang" onClick={() => set({ strikethrough: !s.strikethrough })}><Strikethrough size={14} /></button>
+          </div>
+        </Field>
         <Select label="Hoa / thường" value={s.case ?? "none"} options={[{ value: "none", label: "Giữ nguyên" }, { value: "upper", label: "IN HOA" }, { value: "lower", label: "chữ thường" }, { value: "title", label: "Viết Hoa Đầu Từ" }]}
           onChange={(c) => set({ case: c === "none" ? null : c })} />
       </Section>
       <Section title="Uốn chữ">
-        <div className="ed-seg">
+        <div className="ip-seg">
           {([["none", "Thẳng"], ["arc", "Vòng cung"], ["wave", "Sóng"]] as const).map(([k, lb]) => (
             <button key={k} className={(s.warp?.type ?? "none") === k ? "on" : ""} onClick={() => set({ warp: k === "none" ? null : { type: k, amount: s.warp?.amount || 40 } })}>{lb}</button>
           ))}
@@ -365,7 +393,7 @@ function TextBackgroundPanel({ l, up, images }: { l: TextLayer; up: (p: Partial<
   const set = (patch: Partial<TextStyle>, m?: string) => up({ style: { ...s, ...patch } } as Partial<Layer>, m);
   return (
     <Section title="Nền chữ">
-      <div className="ed-seg">
+      <div className="ip-seg">
         {([["none", "Không"], ["box", "Một khung"], ["line", "Mỗi dòng"]] as const).map(([k, lb]) => (
           <button key={k} className={(bg ? bg.mode ?? "box" : "none") === k ? "on" : ""}
             onClick={() => set({ background: k === "none" ? null : { color: bg?.color ?? "#000000B3", fill: bg?.fill ?? null, padding: bg?.padding ?? 0.3, radius: bg?.radius ?? 10, mode: k } })}>{lb}</button>

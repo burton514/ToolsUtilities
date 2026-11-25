@@ -1,0 +1,10 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "noir"
+name = "Đen trắng tương phản"
+category = "look"
+kind = "effect"
+description = "Đen trắng đậm, gắt như phim noir."
+sample_radius = 0
+order = 5

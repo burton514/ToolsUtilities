@@ -197,12 +197,18 @@ pub struct Shadow {
 
 // ------------------------------------------------------------------ hiệu ứng, chuyển động, keyframe
 
+/// Hiệu ứng: loại có sẵn (exposure, brightness, contrast, saturation, temperature, hue, grayscale, dim, blur)
+/// hoặc **id của một gói trong thư viện** (`library/effects/<id>`), kèm tham số của gói.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Effect {
     #[serde(rename = "type")]
     pub kind: String,
+    /// loại có sẵn: mức của hiệu ứng (mặc định 0); gói thư viện: độ mạnh 0..100 (mặc định 100)
     #[serde(default)]
-    pub amount: f64,
+    pub amount: Option<f64>,
+    /// tham số của gói thư viện (theo `effect.toml`), thiếu thì lấy mặc định
+    #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub params: serde_json::Map<String, Value>,
     #[serde(default)]
     pub timing: Option<Timing>,
     /// giây để hiệu ứng mạnh dần ở đầu và yếu dần ở cuối khoảng thời gian
@@ -472,6 +478,9 @@ pub enum LayerKind {
         #[serde(default)]
         muted: bool,
     },
+    /// Lớp điều chỉnh: không có hình riêng, áp `effects` lên mọi thứ BÊN DƯỚI trong thời gian của nó.
+    /// Dùng cho bộ màu cả đoạn, hiệu ứng toàn khung, và chuyển cảnh (gói `kind = "transition"`).
+    Adjust {},
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

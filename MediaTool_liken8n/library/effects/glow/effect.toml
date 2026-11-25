@@ -1,0 +1,29 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "glow"
+name = "Phát sáng (bloom)"
+category = "stylize"
+kind = "effect"
+description = "Vùng sáng tỏa hào quang mềm."
+sample_radius = 50
+order = 9
+
+[[param]]
+key = "radius"
+label = "Độ lan"
+type = "float"
+min = 2
+max = 48
+step = 1
+default = 16
+unit = "px"
+
+[[param]]
+key = "threshold"
+label = "Ngưỡng sáng"
+type = "float"
+min = 0
+max = 1
+step = 0.01
+default = 0.6

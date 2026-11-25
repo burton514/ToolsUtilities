@@ -1,0 +1,10 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "faded_film"
+name = "Phim phai"
+category = "look"
+kind = "effect"
+description = "Đen nhấc lên, màu nhạt kiểu film."
+sample_radius = 0
+order = 8

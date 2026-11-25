@@ -1,0 +1,16 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "tr_light_leak"
+name = "Lóe nắng"
+category = "transition"
+kind = "transition"
+description = "Vệt nắng ấm quét qua chỗ cắt."
+sample_radius = 0
+order = 9
+
+[[param]]
+key = "tint"
+label = "Màu nắng"
+type = "color"
+default = "#FFB04A"

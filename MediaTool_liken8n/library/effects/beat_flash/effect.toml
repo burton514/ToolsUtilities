@@ -1,0 +1,28 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "beat_flash"
+name = "Lóe theo nhịp"
+category = "light"
+kind = "effect"
+description = "Sáng bừng ở mỗi phách. Đặt lớp bắt đầu đúng phách đầu."
+sample_radius = 0
+order = 3
+
+[[param]]
+key = "bpm"
+label = "Nhịp (BPM)"
+type = "float"
+min = 40
+max = 220
+step = 1
+default = 120
+
+[[param]]
+key = "strength"
+label = "Độ sáng"
+type = "float"
+min = 0
+max = 1
+step = 0.01
+default = 0.5

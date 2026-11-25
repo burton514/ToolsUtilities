@@ -1,0 +1,10 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "warm"
+name = "Ấm áp"
+category = "look"
+kind = "effect"
+description = "Ngả vàng ấm, hợp cảnh nắng, chân dung."
+sample_radius = 0
+order = 2

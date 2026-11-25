@@ -1,7 +1,7 @@
 // Timeline nhiều lớp: dời/cắt clip, hút (snap), chọn nhiều, zoom quanh con trỏ, filmstrip + sóng âm (engine native).
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MediaToolClient } from "@mediatool/api-client";
-import { Eye, EyeOff, Image, Lock, LockOpen, Flag, Magnet, Maximize2, Music, ZoomIn, ZoomOut, Square, Type, Video, Volume2, VolumeX } from "lucide-react";
+import { Eye, EyeOff, Image, Lock, LockOpen, Flag, Magnet, Sparkles, Maximize2, Music, ZoomIn, ZoomOut, Square, Type, Video, Volume2, VolumeX } from "lucide-react";
 import { compEnd, layerEnd, newId, type Layer } from "./model";
 import { useEditor, type EditorStore } from "./store";
 
@@ -14,7 +14,7 @@ const fmt = (t: number) => {
   const m = Math.floor(t / 60), s = t - m * 60;
   return `${m}:${s.toFixed(1).padStart(4, "0")}`;
 };
-const ICONS = { video: Video, image: Image, text: Type, shape: Square, audio: Music };
+const ICONS = { video: Video, image: Image, text: Type, shape: Square, audio: Music, adjust: Sparkles };
 const icon = (l: Layer) => { const I = ICONS[l.type]; return <I size={14} />; };
 /** Tỉ lệ khung của dải ảnh (đọc từ kích thước ảnh thật), cache theo URL. */
 const aspectCache = new Map<string, number>();

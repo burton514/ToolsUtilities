@@ -1,0 +1,16 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "flash"
+name = "Chớp sáng"
+category = "light"
+kind = "effect"
+description = "Lóe sáng rồi tắt trong thời gian của hiệu ứng."
+sample_radius = 0
+order = 1
+
+[[param]]
+key = "tint"
+label = "Màu chớp"
+type = "color"
+default = "#FFFFFF"

@@ -1,0 +1,10 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "cool"
+name = "Lạnh trong"
+category = "look"
+kind = "effect"
+description = "Ngả xanh lạnh, trong trẻo."
+sample_radius = 0
+order = 3

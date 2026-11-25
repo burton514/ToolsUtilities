@@ -1,0 +1,19 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "kaleidoscope"
+name = "Kính vạn hoa"
+category = "stylize"
+kind = "effect"
+description = "Hình lặp đối xứng xoay tròn như kính vạn hoa."
+sample_radius = 2200
+order = 5
+
+[[param]]
+key = "segments"
+label = "Số cánh"
+type = "float"
+min = 3
+max = 16
+step = 1
+default = 6

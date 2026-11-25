@@ -1,0 +1,19 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "glitch"
+name = "Glitch"
+category = "stylize"
+kind = "effect"
+description = "Hình giật, xé ngang, lệch màu như lỗi tín hiệu."
+sample_radius = 400
+order = 8
+
+[[param]]
+key = "speed"
+label = "Tốc độ nhiễu"
+type = "float"
+min = 0.2
+max = 4
+step = 0.1
+default = 1

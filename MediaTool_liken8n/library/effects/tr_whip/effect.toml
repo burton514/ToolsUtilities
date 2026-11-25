@@ -1,0 +1,19 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "tr_whip"
+name = "Lia nhanh"
+category = "transition"
+kind = "transition"
+description = "Lia máy thật nhanh sang ngang (whip pan)."
+sample_radius = 1200
+order = 4
+
+[[param]]
+key = "direction"
+label = "Hướng (0 trái · 1 phải)"
+type = "float"
+min = 0
+max = 1
+step = 1
+default = 0

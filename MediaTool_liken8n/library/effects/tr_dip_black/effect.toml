@@ -1,0 +1,10 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "tr_dip_black"
+name = "Tối rồi sáng"
+category = "transition"
+kind = "transition"
+description = "Tối dần về đen rồi sáng lại."
+sample_radius = 0
+order = 2

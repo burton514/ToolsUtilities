@@ -1,0 +1,10 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "golden_hour"
+name = "Hoàng hôn"
+category = "look"
+kind = "effect"
+description = "Ánh vàng cam của giờ vàng."
+sample_radius = 0
+order = 4

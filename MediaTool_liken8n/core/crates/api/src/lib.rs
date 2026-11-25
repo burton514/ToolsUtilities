@@ -144,6 +144,7 @@ pub fn router(state: AppState) -> Router {
         .route("/composition/prepare", post(composition_prepare))
         .route("/system", get(system))
         .route("/registry/reload", post(reload_registry))
+        .route("/library/effects", get(library_effects))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth));
 
     let static_dir = state.cfg.static_dir.clone();
@@ -634,5 +635,13 @@ async fn reload_registry(State(s): State<AppState>) -> ApiResult<Json<Value>> {
         .map_err(|e| anyhow::anyhow!(e))?;
     let (t, m) = (fresh.tools.len(), fresh.miniapps.len());
     *s.registry.write().unwrap() = fresh;
-    Ok(Json(json!({"tools": t, "miniapps": m})))
+    // thư viện (gói hiệu ứng…) cũng là dữ liệu trên đĩa → nạp lại cùng lúc
+    let lib = tokio::task::spawn_blocking(mediatool_engine::library::reload).await.map_err(|e| anyhow::anyhow!(e))?;
+    Ok(Json(json!({"tools": t, "miniapps": m, "effects": lib.effects.len(), "library_problems": lib.problems})))
+}
+
+/// Danh sách gói hiệu ứng trong thư viện (tên, nhóm, mô tả, tham số) — editor/AI tự sinh giao diện từ đây.
+async fn library_effects() -> ApiResult<Json<Value>> {
+    let lib = tokio::task::spawn_blocking(mediatool_engine::library::get).await.map_err(|e| anyhow::anyhow!(e))?;
+    Ok(Json(json!({ "effects": lib.list(), "problems": lib.problems })))
 }

@@ -1,0 +1,22 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "duotone"
+name = "Hai tông màu"
+category = "look"
+kind = "effect"
+description = "Tô cả hình bằng hai màu theo độ sáng."
+sample_radius = 0
+order = 12
+
+[[param]]
+key = "dark"
+label = "Màu vùng tối"
+type = "color"
+default = "#2B1055"
+
+[[param]]
+key = "light"
+label = "Màu vùng sáng"
+type = "color"
+default = "#FFD23F"

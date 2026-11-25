@@ -1,0 +1,10 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "sepia"
+name = "Nâu sepia"
+category = "look"
+kind = "effect"
+description = "Tông nâu ảnh xưa."
+sample_radius = 0
+order = 9

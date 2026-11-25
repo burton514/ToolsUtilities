@@ -1,0 +1,36 @@
+// Băng VHS — Rung dòng, lem màu, vệt nhiễu của băng video cũ.
+uniform shader image;
+uniform float4 u_rect;    // khung nội dung (x, y, w, h)
+uniform float u_px;       // đơn vị vẽ / 1 px khung 1080
+uniform float u_time;     // giây từ đầu lớp
+uniform float u_progress; // 0..1 trong khoảng áp dụng
+uniform float u_amount;   // độ mạnh 0..1
+
+float hash(float2 q) { return fract(sin(dot(q, float2(12.9898, 78.233))) * 43758.5453); }
+float3 unpm(float4 c) { return c.a > 0.0001 ? c.rgb / c.a : float3(0.0); }
+half4 pm(float3 rgb, float a) { return half4(clamp(rgb, 0.0, 1.0) * a, a); }
+float luma(float3 c) { return dot(c, float3(0.2126, 0.7152, 0.0722)); }
+float3 sat(float3 c, float s) { return mix(float3(luma(c)), c, s); }
+float3 con(float3 c, float k) { return (c - 0.5) * k + 0.5; }
+float2 uvof(float2 p) { return (p - u_rect.xy) / u_rect.zw; }
+float2 pof(float2 uv) { return u_rect.xy + uv * u_rect.zw; }
+float2 center() { return u_rect.xy + u_rect.zw * 0.5; }
+
+uniform float jitter;
+uniform float bleed;
+half4 main(float2 p) {
+    float2 uv = uvof(p);
+    float line = floor(uv.y * 240.0);
+    float j = (hash(float2(line, floor(u_time * 30.0))) - 0.5) * jitter * 6.0 * u_px * u_amount;
+    float band = 1.0 - smoothstep(0.0, 0.03, abs(fract(uv.y - u_time * 0.12) - 0.5));
+    j += band * 14.0 * u_px * u_amount;
+    float o = bleed * 4.0 * u_px * u_amount;
+    float4 r = image.eval(p + float2(j + o, 0.0));
+    float4 g = image.eval(p + float2(j, 0.0));
+    float4 b = image.eval(p + float2(j - o, 0.0));
+    float3 c = float3(unpm(r).r, unpm(g).g, unpm(b).b);
+    float scan = 0.92 + 0.08 * sin(uv.y * u_rect.w / (2.0 * u_px) * 3.14159);
+    float n = (hash(p + u_time) - 0.5) * 0.08 * u_amount;
+    c = mix(c, sat(c, 0.8) * scan + n, u_amount);
+    return pm(c, g.a);
+}

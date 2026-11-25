@@ -1,0 +1,28 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "zoom_pulse"
+name = "Đập theo nhịp"
+category = "distort"
+kind = "effect"
+description = "Khung phóng to theo nhịp nhạc. Đặt lớp bắt đầu đúng phách đầu."
+sample_radius = 300
+order = 5
+
+[[param]]
+key = "bpm"
+label = "Nhịp (BPM)"
+type = "float"
+min = 40
+max = 220
+step = 1
+default = 120
+
+[[param]]
+key = "zoom"
+label = "Độ phóng"
+type = "float"
+min = 0
+max = 0.3
+step = 0.005
+default = 0.06

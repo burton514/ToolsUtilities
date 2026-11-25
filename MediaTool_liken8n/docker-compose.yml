@@ -15,6 +15,8 @@ services:
       - ./tools:/app/tools:ro
       - ./miniapps:/app/miniapps:ro
       - ./config:/app/config:ro
+      # Thư viện: gói hiệu ứng, bộ màu, chuyển cảnh… (dữ liệu, sửa không cần build lại)
+      - ./library:/app/library:ro
       - ./sdk/python:/app/sdk/python:ro
       - ./workers/python:/app/workers/python:ro
       - mediatool-data:/app/data
@@ -29,6 +31,7 @@ services:
     working_dir: /src/core
     volumes:
       - ./core:/src/core
+      - ./library:/src/library:ro
       - cargo-registry:/usr/local/cargo/registry
       - cargo-target:/src/core/target
 

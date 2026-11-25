@@ -1,0 +1,19 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "mirror"
+name = "Soi gương"
+category = "stylize"
+kind = "effect"
+description = "Nửa hình phản chiếu sang nửa kia."
+sample_radius = 2200
+order = 4
+
+[[param]]
+key = "axis"
+label = "Trục (0 ngang · 1 dọc)"
+type = "float"
+min = 0
+max = 1
+step = 1
+default = 0

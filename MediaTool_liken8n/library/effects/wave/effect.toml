@@ -1,0 +1,38 @@
+# Gói hiệu ứng MediaTool — xem docs/LIBRARY.md
+
+[effect]
+id = "wave"
+name = "Gợn sóng"
+category = "distort"
+kind = "effect"
+description = "Hình lượn sóng như nhìn qua mặt nước."
+sample_radius = 70
+order = 1
+
+[[param]]
+key = "amplitude"
+label = "Biên độ"
+type = "float"
+min = 0
+max = 60
+step = 0.5
+default = 12
+unit = "px"
+
+[[param]]
+key = "frequency"
+label = "Số gợn"
+type = "float"
+min = 1
+max = 20
+step = 0.5
+default = 5
+
+[[param]]
+key = "speed"
+label = "Tốc độ"
+type = "float"
+min = 0
+max = 3
+step = 0.05
+default = 0.6
