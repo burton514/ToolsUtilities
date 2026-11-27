@@ -1,0 +1,49 @@
+{
+  "inputs": [
+    { "name": "video", "format": "video", "description": "Video có người nói cần lồng giọng mới" },
+    { "name": "voice_file", "format": "voice", "required": false, "description": "Giọng riêng đã lưu (tùy chọn)" }
+  ],
+  "params": {
+    "type": "object",
+    "properties": {
+      "language": { "$from": "speech_transcribe.language" },
+      "listen_model": { "$from": "speech_transcribe.model", "default": "small", "description": "Model nghe lời gốc (small đúng hơn với giọng địa phương, tạp âm)" },
+      "voice": { "$from": "speech_dub.voice" },
+      "model": { "$from": "speech_dub.model" },
+      "fit": { "$from": "speech_dub.fit" },
+      "original_volume": { "$from": "speech_dub.original_volume" },
+      "style": { "$from": "compose_bind.style", "default": "subtitle" },
+      "position": { "$from": "compose_bind.position" },
+      "quality": { "$from": "compose_bind.quality" }
+    }
+  },
+  "steps": [
+    {
+      "id": "listen",
+      "title": "Nghe và chép lời gốc",
+      "tool": "speech_transcribe",
+      "inputs": { "media": "$input.video" },
+      "params": { "language": "$param.language", "model": "$param.listen_model" }
+    },
+    {
+      "id": "dub",
+      "title": "Lồng giọng mới",
+      "tool": "speech_dub",
+      "inputs": { "video": "$input.video", "data": "$listen.transcript", "voice_file": "$input.voice_file" },
+      "params": { "voice": "$param.voice", "model": "$param.model", "fit": "$param.fit", "original_volume": "$param.original_volume" }
+    },
+    {
+      "id": "subs",
+      "title": "Chèn phụ đề khớp giọng mới",
+      "tool": "compose_bind",
+      "inputs": { "video": "$dub.video", "data": "$dub.transcript" },
+      "params": { "style": "$param.style", "position": "$param.position", "quality": "$param.quality" }
+    }
+  ],
+  "outputs": {
+    "video": { "from": "$subs.video", "format": "video", "description": "Video đã lồng giọng mới, có phụ đề" },
+    "video_dub": { "from": "$dub.video", "format": "video", "description": "Video đã lồng giọng mới, không phụ đề" },
+    "subtitle": { "from": "$dub.subtitle", "format": "subtitle", "description": "Phụ đề .srt theo giọng mới — sửa lời rồi chạy lại speech_dub nếu cần" },
+    "composition": { "from": "$subs.composition", "format": "composition", "description": "Bản dựng phần phụ đề — chỉnh tiếp bằng compose_edit" }
+  }
+}

@@ -76,11 +76,18 @@ function Library({ store, client }: { store: EditorStore; client: MediaToolClien
   const [assets, setAssets] = useState<Asset[]>([]);
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const load = () => client.listAssets().then((a) => setAssets(a.filter((x) => ["video", "audio", "image"].includes(x.format)))).catch(() => undefined);
+  // video / nhạc / ảnh thêm vào timeline; bản dựng (composition) do tool hay chuỗi tạo ra (compose_bind, karaoke…) mở thẳng để sửa tiếp
+  const load = () => client.listAssets().then((a) => setAssets(a.filter((x) => ["video", "audio", "image", "composition"].includes(x.format)))).catch(() => undefined);
   useEffect(() => {
     void load();
   }, []);
   const add = async (a: Asset) => {
+    if (a.format === "composition") {
+      if (store.state.comp.layers.length && !confirm(`Mở bản dựng "${a.filename}"? Bản đang dựng sẽ được thay (có thể Hoàn tác).`)) return;
+      const r = await fetch(client.assetUrl(a.id));
+      store.replace((await r.json()) as Composition);
+      return;
+    }
     const ref = { asset_id: a.id, format: a.format, filename: a.filename };
     const dur = a.format === "image" ? undefined : await probeDuration(client.assetUrl(a.id));
     const layer = mediaLayer(store.state.comp.layers.length ? store.state.time : 0, ref, dur);
@@ -144,12 +151,17 @@ function Library({ store, client }: { store: EditorStore; client: MediaToolClien
       </div>
       <div className="ed-lib-list">
         {assets.map((a) => (
-          <button key={a.id} className="ed-lib-item" onClick={() => add(a)} title="Bấm để thêm vào timeline tại playhead">
+          <button key={a.id} className="ed-lib-item" onClick={() => add(a)}
+            title={a.format === "composition" ? "Bấm để mở bản dựng này" : "Bấm để thêm vào timeline tại playhead"}>
             {a.format === "image" ? <span className="ed-lib-thumb"><img src={client.assetUrl(a.id)} alt="" loading="lazy" /></span>
               : a.format === "video" ? <span className="ed-lib-thumb"><img src={client.thumbnailUrl(a.id, 180)} alt="" loading="lazy" /><Play size={14} className="ed-lib-play" /></span>
+              : a.format === "composition" ? <span className="ed-lib-thumb audio"><FolderOpen size={18} /></span>
               : <span className="ed-lib-thumb audio"><Music size={18} /></span>}
             <span className="ed-lib-name">{a.filename}</span>
-            <span className="ed-lib-kind">{({ video: "Video", audio: "Âm thanh", image: "Ảnh" } as Record<string, string>)[a.format] ?? a.format}</span>
+            <span className="ed-lib-kind">
+              {({ video: "Video", audio: "Âm thanh", image: "Ảnh", composition: "Bản dựng" } as Record<string, string>)[a.format] ?? a.format}
+              {typeof a.lineage?.tool_id === "string" && <> · {String(a.lineage.tool_id)}</>}
+            </span>
           </button>
         ))}
         {!assets.length && <div className="ed-dim ed-pad">Chưa có file nào. Tải video, nhạc hoặc ảnh lên để bắt đầu.</div>}

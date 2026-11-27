@@ -1,18 +1,18 @@
 """compose_render — lớp vỏ mỏng quanh engine native `mediatool-render` (Rust: Skia + FFmpeg).
 
-Tool chỉ làm 2 việc: giải nguồn trong composition thành đường dẫn file, rồi gọi engine và chuyển tiến độ.
+Tool chỉ làm 2 việc: giải nguồn trong composition thành đường dẫn file, rồi xuất bằng `mediatool_sdk.compose.render`
+(cùng đường gọi engine với mọi tool dựng hình khác: tiến độ, hủy, báo lỗi giống nhau).
 """
 from __future__ import annotations
 
-import json
 import os
-import shutil
-import subprocess
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from mediatool_sdk import BaseTool, Composition, Context, InputError, Result, ToolError, VideoFile
+from mediatool_sdk import BaseTool, Composition, Context, InputError, Result, VideoFile
+from mediatool_sdk import compose
 from mediatool_sdk.assets import Asset
 
 
@@ -23,23 +23,29 @@ class Inputs(BaseModel):
 
 class Params(BaseModel):
     quality: Literal["draft", "standard", "high"] = Field(
-        "standard", description="draft: 540p, nhanh để xem thử · standard: đúng khung bản dựng · high: chất lượng cao, chậm hơn")
+        "standard", description="Chất lượng video", json_schema_extra={"x-labels": {"draft": "Nháp — 540p, nhanh để xem thử", "standard": "Chuẩn — đúng khung bản dựng", "high": "Cao — đẹp nhất, chậm hơn"}})
 
 
 class Outputs(BaseModel):
     video: VideoFile = Field(description="Video MP4 (H.264 + AAC) đã xuất")
 
 
-def _engine() -> str:
-    exe = os.environ.get("MEDIATOOL_RENDER") or shutil.which("mediatool-render")
-    if not exe:
-        raise ToolError("MISSING_BINARY", "Không tìm thấy engine 'mediatool-render'")
-    return exe
+def _stored_file(src: str) -> bool:
+    """Đường dẫn file có thật nằm trong kho dữ liệu MediaTool (MEDIATOOL_DATA) — chỉ chấp nhận file của hệ thống."""
+    data = os.environ.get("MEDIATOOL_DATA")
+    p = Path(src)
+    if not data or not p.is_absolute() or not p.is_file():
+        return False
+    try:
+        p.resolve().relative_to(Path(data).resolve())
+        return True
+    except ValueError:
+        return False
 
 
 class ComposeRenderTool(BaseTool[Inputs, Params, Outputs]):
     def check(self, ctx: Context) -> None:
-        _engine()
+        compose.require_engine()
         ctx.require_binary("ffmpeg")
 
     def run(self, inputs: Inputs, params: Params, ctx: Context) -> Result[Outputs]:
@@ -54,35 +60,14 @@ class ComposeRenderTool(BaseTool[Inputs, Params, Outputs]):
                 continue
             kind, _, ref = src.partition(":")
             found = by_id.get(ref) if kind == "asset" else by_name.get(ref) if kind == "file" else None
+            # bản dựng do tool khác tạo (compose_bind, compose_template…) trỏ thẳng tới file asset trong kho dữ liệu
+            if found is None and _stored_file(src):
+                continue
             if found is None:
                 raise InputError("media", f"Thiếu file nguồn '{src}' của lớp '{layer.get('name', layer.get('id'))}' trong input media")
             layer["source"] = str(found.path)
 
-        resolved = ctx.workdir / "composition.resolved.json"
-        resolved.write_text(json.dumps(comp, ensure_ascii=False), encoding="utf-8")
-        out = ctx.workdir / "video.mp4"
-
-        proc = subprocess.Popen(
-            [_engine(), "export", "--composition", str(resolved), "--out", str(out), "--quality", params.quality],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace",
-        )
-        error = None
-        assert proc.stdout is not None
-        for line in proc.stdout:
-            if ctx.is_cancelled():
-                proc.kill()
-                ctx.check_cancelled()
-            try:
-                ev = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if "progress" in ev:
-                ctx.progress(float(ev["progress"]) * 0.99, ev.get("message", ""))
-            elif "error" in ev:
-                error = ev["error"]
-        code = proc.wait()
-        if code != 0 or error:
-            raise ToolError("RENDER_FAILED", error or (proc.stderr.read() if proc.stderr else "")[-400:] or f"engine thoát mã {code}")
+        out = compose.render(comp, ctx.workdir / "video.mp4", ctx, params.quality)
 
         video = VideoFile(path=out)
         w, h = comp["canvas"]["width"], comp["canvas"]["height"]

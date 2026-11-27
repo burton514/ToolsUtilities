@@ -9,6 +9,7 @@
 //! một đường render duy nhất dùng chung cho xem trước và xuất file.
 
 pub mod anim;
+pub mod edit;
 pub mod export;
 pub mod library;
 pub mod media;

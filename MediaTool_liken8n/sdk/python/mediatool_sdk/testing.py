@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .assets import ASSET_TYPES
+from . import models
 from .errors import ToolError
 from .loader import read_manifest
 from .runner import run_tool_dir
@@ -68,12 +69,14 @@ def run_tool(
     params: dict[str, Any] | None = None,
     workdir: str | Path | None = None,
     raise_errors: bool = True,
+    device: str = "cpu",
 ) -> TestResult:
     tool_dir = Path(tool_dir).resolve()
     events: list[dict[str, Any]] = []
     wd = Path(workdir) if workdir else Path(tempfile.mkdtemp(prefix="mediatool_"))
     try:
-        res = run_tool_dir(tool_dir, inputs or {}, params or {}, wd, events.append, base_dir=tool_dir)
+        res = run_tool_dir(tool_dir, inputs or {}, params or {}, wd, events.append, base_dir=tool_dir, device=device,
+                           model_resolver=models.resolver(read_manifest(tool_dir), log=lambda m: None))
         return TestResult(True, res["summary"], res["warnings"], res["outputs"], events, None, peak_ram_mb())
     except ToolError as e:
         if raise_errors:

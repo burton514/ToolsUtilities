@@ -1,7 +1,7 @@
 [tool]
 id          = "compose_render"
 name        = "Xuất bản dựng thành video"
-version     = "0.1.0"
+version     = "0.1.2"
 sdk         = ">=0.1,<0.2"
 entry       = "tool:ComposeRenderTool"
 summary     = "Render composition (nhiều lớp video/ảnh/chữ nghệ thuật/hình, keyframe, animation) thành video MP4 bằng engine native (Skia + FFmpeg)."
@@ -9,10 +9,15 @@ tags        = ["render", "export", "composition", "motion"]
 owners      = ["mediatool-core"]
 license     = "MIT"
 status      = "beta"
+# Nguồn hiện cạnh tên tool (repo model / thư viện / engine)
+sources     = [
+  { name = "MediaTool engine (Skia + FFmpeg)", url = "" },
+  { name = "rust-skia/rust-skia", url = "https://github.com/rust-skia/rust-skia" },
+]
 
 [runtime]
 profile     = "base"
-ram_mb      = 900
+ram_mb      = 2400
 gpu         = "none"
 heavy       = true
 timeout_s   = 3600

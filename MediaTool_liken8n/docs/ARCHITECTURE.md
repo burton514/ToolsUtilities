@@ -219,7 +219,7 @@ Ngoài sandbox còn có CLI `mediatool-dev` (`new`, `validate`, `run`, `test`) �
 
 - Mọi input/output dạng file hoặc dữ liệu có cấu trúc đều là **asset**, truyền **theo tham chiếu** (asset id hoặc đường dẫn), không truyền bytes. Đây là điều kiện để chạy được trên máy 8 GB.
 - JSON Schema của mỗi trường asset có `format` ngữ nghĩa. Danh sách `format` do SDK quản lý:
-  `video`, `audio`, `image`, `image_sequence`, `subtitle`, `transcript`, `timed_lyrics`, `beat_grid`, `scene_list`, `time_ranges`, `json`, `font`, `lut`, `composition` (bản dựng nhiều lớp, xem [COMPOSITION_FORMAT.md](COMPOSITION_FORMAT.md)), `text_style`.
+  `video`, `audio`, `image`, `image_sequence`, `subtitle`, `transcript`, `timed_lyrics`, `beat_grid`, `scene_list`, `time_ranges`, `json`, `font`, `lut`, `composition` (bản dựng nhiều lớp, xem [COMPOSITION_FORMAT.md](COMPOSITION_FORMAT.md)), `text_style`, `voice` (hồ sơ giọng đọc, xem `speech_voice_add`), `text` (văn bản thuần).
 - **Quy tắc nối:** output có `format` X nối thẳng được vào input có `format` X. Workflow validator, AI và UI đều dùng quy tắc này.
 - Mỗi asset lưu **lineage**: được tạo từ asset nào, bởi tool nào, version nào, params nào. Lineage dùng để ghép lại đúng timeline, cache kết quả và chạy lại một phần workflow.
 - Storage: local disk (`data/assets/…`) → S3/MinIO sau này, qua interface `StorageBackend`.

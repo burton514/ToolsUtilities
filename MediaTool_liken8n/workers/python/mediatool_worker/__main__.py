@@ -3,6 +3,9 @@
   python -m mediatool_worker describe --tool-dir <dir>
       → in 1 JSON: schema I/O (+ "check_error" nếu tool.check() báo lỗi môi trường)
 
+  python -m mediatool_worker health --data-dir <dir>
+      → in 1 JSON: môi trường chạy tool (Python, thư viện, FFmpeg, ONNX Runtime / GPU, CPU / RAM / ổ đĩa)
+
   python -m mediatool_worker run
       stdin  dòng 1: job spec {"protocol","job_id","tool_dir","workdir","inputs","params","limits","device"}
       stdin  sau đó: {"cmd":"cancel"} | {"model_path": "..."} | {"error": "..."}
@@ -146,6 +149,13 @@ def main(argv: list[str]) -> int:
         return _describe(Path(argv[argv.index("--tool-dir") + 1]).resolve())
     if argv[0] == "run":
         return _serve()
+    if argv[0] == "health":
+        from .health import report
+
+        data = argv[argv.index("--data-dir") + 1] if "--data-dir" in argv else "data"
+        sys.stdout.buffer.write(json.dumps(report(data), ensure_ascii=False).encode("utf-8"))
+        sys.stdout.flush()
+        return 0
     print(f"Lệnh không hợp lệ: {argv[0]}", file=sys.stderr)
     return 2
 

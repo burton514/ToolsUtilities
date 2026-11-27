@@ -28,26 +28,80 @@ function resolve(schema: JsonSchema, root: JsonSchema): JsonSchema {
   return schema;
 }
 
-export function ParamField({ name, schema, value, onChange }: { name: string; schema: JsonSchema; value: unknown; onChange: (v: unknown) => void }) {
-  const label = schema.title ?? name;
-  const hint = schema.description;
-  if (schema.enum) {
-    return <Select label={label} hint={hint} value={value as string} options={schema.enum as string[]} onChange={onChange} />;
+/** Tiêu đề pydantic tự sinh từ tên trường ("offset_ms" → "Offset Ms"; qua chuỗi `$from` có thể là tên trường gốc) —
+ *  dạng chữ Latin không dấu, mỗi từ viết hoa đầu. Tiêu đề tool tự đặt (tiếng Việt) thì giữ. */
+const isAutoTitle = (t: string) => /^[A-Z][a-z0-9]*( [A-Z0-9][a-z0-9]*)*$/.test(t);
+
+/** Nhãn ngắn cho một trường: tiêu đề tool tự đặt, không thì phần đầu của mô tả (cắt ở dấu ":" ";" "," "—" "." ngoài ngoặc). */
+export function shortLabel(name: string, schema: { title?: string; description?: string }): string {
+  if (schema.title && !isAutoTitle(schema.title)) return schema.title;
+  const d = (schema.description ?? "").trim();
+  if (!d) return schema.title ?? name;
+  let depth = 0;
+  let cut = d.length;
+  for (let i = 0; i < d.length; i++) {
+    const c = d[i];
+    if (c === "(") depth++;
+    else if (c === ")") depth = Math.max(0, depth - 1);
+    else if (depth === 0 && (c === ":" || c === ";" || c === "," || c === "—" || c === "–" || c === "=" || (c === "." && d[i + 1] === " "))) {
+      if (i >= 3) { cut = i; break; }
+    }
   }
-  if (schema.type === "boolean") return <Toggle label={label} hint={hint} checked={Boolean(value)} onChange={onChange} />;
+  let out = d.slice(0, cut).trim().replace(/\s+[-–—]$/, "");
+  if (out.length > 42) out = out.replace(/\s*\(.*$/, "");
+  if (out.length > 42) out = `${out.slice(0, 40).replace(/\s+\S*$/, "")}…`;
+  return out;
+}
+
+const HEX = /#\[0-9A-Fa-f\]\{6\}/;
+
+/** Một ô tham số tự sinh từ schema. Chỉ hiện nhãn ngắn; mô tả đầy đủ nằm ở chú thích khi rê chuột (không chen chữ dưới ô). */
+export function ParamField({ name, schema, value, onChange }: { name: string; schema: JsonSchema; value: unknown; onChange: (v: unknown) => void }) {
+  const text = shortLabel(name, schema);
+  const label = schema.description && schema.description !== text ? <span title={schema.description}>{text}</span> : text;
+  if (schema.enum) {
+    // nhãn hiển thị tùy chọn: JSON Schema mở rộng `x-labels: {giá trị: nhãn}` (tool tự khai báo, ví dụ tên tiếng Việt)
+    const labels = (schema as { "x-labels"?: Record<string, string> })["x-labels"] ?? {};
+    const options = (schema.enum as string[]).map((v) => ({ value: v, label: labels[v] ?? v }));
+    return <Select label={label} value={value as string} options={options} onChange={onChange} />;
+  }
+  if (schema.type === "boolean") return <Toggle label={label} checked={Boolean(value)} onChange={onChange} />;
   if (schema.type === "integer" || schema.type === "number") {
     const n = typeof value === "number" ? value : Number(value ?? 0);
     if (schema.minimum != null && schema.maximum != null && schema.maximum - schema.minimum <= 1000) {
-      return <Slider label={label} hint={hint} value={n} min={schema.minimum} max={schema.maximum}
+      return <Slider label={label} value={n} min={schema.minimum} max={schema.maximum}
         step={schema.type === "integer" ? 1 : (schema.maximum - schema.minimum) / 100} onChange={onChange} />;
     }
-    return <NumberInput label={label} hint={hint} value={n} min={schema.minimum} max={schema.maximum} onChange={onChange} />;
+    return <NumberInput label={label} value={n} min={schema.minimum} max={schema.maximum} onChange={onChange} />;
+  }
+  if ((schema.type === "string" || !schema.type) && (schema as { "x-multiline"?: boolean })["x-multiline"]) {
+    // chuỗi dài (văn bản đọc, kịch bản…): tool khai báo `x-multiline: true`
+    return (
+      <Field label={label}>
+        <textarea className="mt-textarea" rows={6} value={String(value ?? "")} onChange={(e) => onChange(e.target.value)} />
+      </Field>
+    );
+  }
+  if ((schema.type === "string" || !schema.type) && HEX.test((schema as { pattern?: string }).pattern ?? "")) {
+    // màu #RRGGBB (tool khai pattern): bảng chọn màu + ô mã màu; mẫu cho phép bỏ trống thì có nút "Mặc định"
+    const v = String(value ?? "");
+    const optional = ((schema as { pattern?: string }).pattern ?? "").includes(")?");
+    return (
+      <Field label={label}>
+        <span className="mt-color">
+          <input type="color" value={/^#[0-9a-f]{6}$/i.test(v) ? v : "#ffffff"} onChange={(e) => onChange(e.target.value.toUpperCase())} aria-label={text} />
+          <input className="mt-input" value={v} placeholder={optional ? "Mặc định" : "#RRGGBB"} maxLength={7} aria-label={`${text} (mã màu)`}
+            onChange={(e) => onChange(e.target.value)} />
+          {optional && v && <button type="button" className="mt-color-clear" onClick={() => onChange("")}>Mặc định</button>}
+        </span>
+      </Field>
+    );
   }
   if (schema.type === "string" || !schema.type) {
-    return <TextInput label={label} hint={hint} value={String(value ?? "")} onChange={onChange} />;
+    return <TextInput label={label} value={String(value ?? "")} onChange={onChange} />;
   }
   return (
-    <Field label={label} hint={`${hint ?? ""} (nhập JSON)`}>
+    <Field label={<>{label} <span className="mt-faint">(JSON)</span></>}>
       <textarea className="mt-textarea" defaultValue={JSON.stringify(value ?? null)}
         onBlur={(e) => {
           try {
@@ -141,7 +195,7 @@ export function AutoPanel({ session, tool }: { session: Session; tool: ToolDetai
           const options = assets.filter((a) => accepts(f.format, a.ref.format));
           const value = picked[f.name];
           return (
-            <Field key={f.name} label={<>{f.name} <Badge>{f.format}{f.multiple ? " · nhiều" : ""}</Badge>{f.required ? "" : " (không bắt buộc)"}</>} hint={f.description}>
+            <Field key={f.name} label={<span title={f.description ?? undefined}>{shortLabel(f.name, { description: f.description ?? undefined })} <Badge>{f.format}{f.multiple ? " · nhiều" : ""}</Badge>{f.required ? "" : " (không bắt buộc)"}</span>}>
               {f.multiple ? (
                 <select className="mt-select" multiple value={(value as string[]) ?? []}
                   onChange={(e) => setPicked({ ...picked, [f.name]: Array.from(e.target.selectedOptions).map((o) => o.value) })}>

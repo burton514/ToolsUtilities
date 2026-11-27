@@ -1,0 +1,42 @@
+{
+  "inputs": [
+    { "name": "video", "format": "video", "description": "Video nền cần thuyết minh" },
+    { "name": "voice_file", "format": "voice", "required": false, "description": "Giọng riêng đã lưu (tùy chọn)" }
+  ],
+  "params": {
+    "type": "object",
+    "properties": {
+      "text": { "$from": "speech_synthesize.text", "description": "Lời thuyết minh. Xuống dòng = sang đoạn mới" },
+      "voice": { "$from": "speech_synthesize.voice" },
+      "model": { "$from": "speech_synthesize.model" },
+      "speed": { "$from": "speech_synthesize.speed" },
+      "style": { "$from": "compose_bind.style", "default": "subtitle" },
+      "caption_chars": { "$from": "speech_synthesize.caption_chars" },
+      "position": { "$from": "compose_bind.position" },
+      "video_volume": { "$from": "compose_bind.video_volume", "default": 20 },
+      "quality": { "$from": "compose_bind.quality" }
+    }
+  },
+  "steps": [
+    {
+      "id": "speak",
+      "title": "Đọc lời thuyết minh",
+      "tool": "speech_synthesize",
+      "inputs": { "voice_file": "$input.voice_file" },
+      "params": { "text": "$param.text", "voice": "$param.voice", "model": "$param.model", "speed": "$param.speed", "caption_chars": "$param.caption_chars" }
+    },
+    {
+      "id": "subs",
+      "title": "Ghép giọng và phụ đề vào video",
+      "tool": "compose_bind",
+      "inputs": { "video": "$input.video", "audio": "$speak.audio", "data": "$speak.transcript" },
+      "params": { "style": "$param.style", "position": "$param.position", "video_volume": "$param.video_volume", "quality": "$param.quality" }
+    }
+  ],
+  "outputs": {
+    "video": { "from": "$subs.video", "format": "video", "description": "Video có giọng thuyết minh và phụ đề chạy theo giọng" },
+    "audio": { "from": "$speak.audio", "format": "audio", "description": "Riêng giọng thuyết minh" },
+    "subtitle": { "from": "$speak.subtitle", "format": "subtitle", "description": "Phụ đề .srt khớp giọng" },
+    "composition": { "from": "$subs.composition", "format": "composition", "description": "Bản dựng — chỉnh tiếp bằng compose_edit" }
+  }
+}

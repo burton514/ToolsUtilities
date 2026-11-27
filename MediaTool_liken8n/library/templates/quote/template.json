@@ -1,0 +1,165 @@
+{
+  "id": "quote",
+  "name": "Trích dẫn",
+  "description": "Câu trích dẫn chữ có chân hiện từng từ, tên tác giả bên dưới — hợp chia sẻ câu nói hay.",
+  "output": "video",
+  "duration": 7,
+  "slots": {
+    "title": {
+      "label": "Câu trích dẫn",
+      "default": "Hành trình vạn dặm bắt đầu từ một bước chân."
+    },
+    "subtitle": {
+      "label": "Tác giả",
+      "default": "Lão Tử"
+    },
+    "image": {
+      "label": "Ảnh nền",
+      "kind": "image"
+    },
+    "video": {
+      "label": "Video nền",
+      "kind": "video"
+    },
+    "accent": {
+      "label": "Màu nhấn",
+      "default": "#FFC83D"
+    }
+  },
+  "composition": {
+    "version": 1,
+    "canvas": {
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "background": "#101018"
+    },
+    "duration": 7,
+    "layers": [
+      {
+        "id": "bg",
+        "name": "bg",
+        "type": "shape",
+        "shape": "rect",
+        "x": 0.5,
+        "y": 0.5,
+        "w": 1,
+        "h": 1,
+        "fill": {
+          "type": "linear",
+          "stops": [
+            "#2B1D14",
+            "#120C08"
+          ],
+          "angle": 90
+        },
+        "corner_radius": 0,
+        "start": 0,
+        "duration": 7
+      },
+      {
+        "id": "bg_image",
+        "name": "Nền",
+        "type": "image",
+        "source": "{{image}}",
+        "fit": "cover",
+        "start": 0,
+        "duration": 7,
+        "_requires": "image",
+        "effects": [
+          {
+            "type": "dim",
+            "amount": 35
+          }
+        ]
+      },
+      {
+        "id": "mark",
+        "name": "mark",
+        "type": "text",
+        "text": "“",
+        "x": 0.5,
+        "y": 0.2,
+        "start": 0.2,
+        "duration": 6.8,
+        "style": {
+          "font": "Noto Serif",
+          "weight": 900,
+          "size": 260,
+          "fill": "{{accent}}",
+          "align": "center",
+          "max_width": 0.86
+        },
+        "animations": [
+          {
+            "preset": "fade",
+            "kind": "in",
+            "duration": 0.6
+          }
+        ]
+      },
+      {
+        "id": "title",
+        "name": "title",
+        "type": "text",
+        "text": "{{title}}",
+        "x": 0.5,
+        "y": 0.46,
+        "start": 0.5,
+        "duration": 6.3,
+        "style": {
+          "font": "Noto Serif",
+          "weight": 600,
+          "size": 84,
+          "fill": "#FFFFFF",
+          "align": "center",
+          "max_width": 0.74,
+          "italic": true
+        },
+        "animations": [
+          {
+            "preset": "fade_up",
+            "kind": "in",
+            "unit": "word",
+            "duration": 2.0
+          },
+          {
+            "preset": "fade",
+            "kind": "out",
+            "duration": 0.5
+          }
+        ]
+      },
+      {
+        "id": "subtitle",
+        "name": "subtitle",
+        "type": "text",
+        "text": "— {{subtitle}}",
+        "x": 0.5,
+        "y": 0.72,
+        "start": 2.6,
+        "duration": 4.2,
+        "style": {
+          "font": "Noto Sans",
+          "weight": 500,
+          "size": 44,
+          "fill": "{{accent}}",
+          "align": "center",
+          "max_width": 0.86
+        },
+        "animations": [
+          {
+            "preset": "fade",
+            "kind": "in",
+            "duration": 0.6
+          },
+          {
+            "preset": "fade",
+            "kind": "out",
+            "duration": 0.5
+          }
+        ]
+      }
+    ]
+  }
+}

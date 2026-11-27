@@ -102,7 +102,8 @@ Composition JSON ─► plan (anim + keyframe, thuần dữ liệu) ─► Skia 
 | `media_*`, `video_demux`, `video_extract_frames`, `video_speed`, `video_reframe`, `media_burn_subtitle` | FFmpeg (+ libass) |
 | `video_scene_detect`, `video_thumbnail` | PySceneDetect, OpenCV |
 | `video_beat_sync_edit`, `video_color_grade`, `video_effects`, `video_from_images` | Engine render (Skia + FFmpeg), filter FFmpeg |
-| `audio_separate_stems` | Demucs |
+| `audio_vocals_leap_xe`, `audio_stems6_sw` | BS-RoFormer (`mediatool_sdk.bs_roformer`: numpy + onnxruntime, đọc checkpoint PyTorch không cần torch) |
+| `audio_stems6_htdemucs` | HTDemucs 6s (ONNX, onnxruntime) |
 | `audio_vocal_cleanup` | python-audio-separator (UVR) |
 | `audio_denoise` | DeepFilterNet |
 | `audio_normalize` | FFmpeg loudnorm |
@@ -130,3 +131,13 @@ Composition JSON ─► plan (anim + keyframe, thuần dữ liệu) ─► Skia 
 | **Phi thương mại** (CC-BY-NC) | Nhiều model căn lời và phiên âm tiếng Việt, một số model UVR, model của madmom |
 
 Nếu sau này cần thương mại hóa, mỗi tool dùng engine GPL hoặc model phi thương mại phải có phương án thay thế khai báo sẵn.
+
+Phương án thay thế đã khai báo:
+
+| Tool / module | Phần GPL / phi thương mại | Thay thế |
+|---|---|---|
+| `lyrics_align` | model `song` (nguyenvulebinh/lyric-alignment, CC-BY-NC-4.0) — mặc định | `engine = general`: wav2vec2-large-xlsr-53 tiếng Việt (Apache-2.0), cùng đường xử lý |
+| `speech_zipformer_30m`, `speech_zipformer_150m` | model ZipFormer của hynt (CC-BY-NC-ND-4.0) | `speech_transcribe` (PhoWhisper BSD-3 / Whisper MIT), cùng output nên thay thẳng trong chuỗi |
+| `audio_vocals_leap_xe` | model BS-RoFormer Leap Xe (pcunwa) — repo không ghi giấy phép | `audio_stems6_htdemucs` (HTDemucs 6s, MIT): cùng output `vocals` / `instrumental` nên thay thẳng trong chuỗi |
+| `audio_stems6_sw` | model BS-RoFormer SW (jarredou) — không ghi giấy phép | `audio_stems6_htdemucs` (MIT): cùng 7 output |
+| `mediatool_sdk.speech.stretch` (`speech_synthesize`, `speech_dub`) | Rubber Band (GPL) qua FFmpeg | `atempo` của FFmpeg (LGPL) — tự dùng khi bản FFmpeg không có Rubber Band |

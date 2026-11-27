@@ -1,0 +1,28 @@
+# Chuỗi đã lưu: core đọc chain.json và chạy từng bước thành job con. Không có code riêng.
+[tool]
+id          = "compose_voiceover_captions"
+name        = "Thuyết minh kèm phụ đề"
+version     = "0.1.0"
+sdk         = ">=0.1,<0.2"
+entry       = "chain:chain.json"
+summary     = "Một bước: đọc lời thuyết minh bằng giọng tự nhiên, ghép vào video (tiếng gốc nhỏ lại) và chèn phụ đề chạy đúng theo giọng."
+tags        = ["chain", "voiceover", "tts", "subtitle"]
+owners      = ["mediatool-core"]
+license     = "MIT"
+status      = "beta"
+
+[runtime]
+profile     = "base"
+ram_mb      = 50
+gpu         = "none"
+heavy       = false
+timeout_s   = 10800
+
+[mcp]
+expose      = true
+hint        = "Dùng khi người dùng có video + lời thuyết minh dạng văn bản và muốn video có giọng đọc kèm phụ đề. Chưa có lời mà muốn đổi giọng của video thì dùng compose_auto_dub."
+
+[[examples]]
+title       = "Thuyết minh ngắn cho video mẫu"
+inputs      = { video = "samples/talk.mp4" }
+params      = { text = "Đây là video thử nghiệm. Giọng đọc và phụ đề được tạo hoàn toàn tự động.", voice = "Thùy Dung", quality = "draft" }

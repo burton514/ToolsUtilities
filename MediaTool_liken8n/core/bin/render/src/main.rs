@@ -28,14 +28,27 @@ fn run() -> Result<()> {
     let comp_path = arg(&args, "--composition").ok_or_else(|| anyhow!("Thiếu --composition"))?;
     let out = PathBuf::from(arg(&args, "--out").ok_or_else(|| anyhow!("Thiếu --out"))?);
     let text = std::fs::read_to_string(&comp_path).with_context(|| format!("Không đọc được {comp_path}"))?;
+    if cmd == "edit" {
+        // sửa bản dựng theo bảng thao tác chung (mediatool_engine::edit)
+        let ops_path = arg(&args, "--ops").ok_or_else(|| anyhow!("Thiếu --ops"))?;
+        let ops: Vec<serde_json::Value> = serde_json::from_str(&std::fs::read_to_string(&ops_path)?).context("--ops phải là mảng JSON")?;
+        let comp: serde_json::Value = serde_json::from_str(&text).context("Composition không hợp lệ")?;
+        let (edited, counts) = mediatool_engine::edit::apply(comp, &ops)?;
+        std::fs::write(&out, serde_json::to_string_pretty(&edited)?)?;
+        println!("{}", serde_json::json!({"done": true, "out": out, "affected": counts}));
+        return Ok(());
+    }
     let comp: Composition = serde_json::from_str(&text).context("Composition không hợp lệ")?;
 
     match cmd.as_str() {
         "export" => {
-            let opts = ExportOptions {
-                quality: Quality::parse(&arg(&args, "--quality").unwrap_or_default()),
-                ffmpeg: std::env::var("MEDIATOOL_FFMPEG").unwrap_or_else(|_| "ffmpeg".into()),
-            };
+            let mut opts = ExportOptions::new(
+                Quality::parse(&arg(&args, "--quality").unwrap_or_default()),
+                std::env::var("MEDIATOOL_FFMPEG").unwrap_or_else(|_| "ffmpeg".into()),
+            );
+            opts.threads = arg(&args, "--threads").and_then(|v| v.parse().ok());
+            opts.encoder = arg(&args, "--encoder");
+            opts.cache_dir = arg(&args, "--cache-dir").map(PathBuf::from);
             let cancel = AtomicBool::new(false);
             export(&comp, &out, &opts, |p, m| println!("{}", serde_json::json!({"progress": p, "message": m})), &cancel)?;
             println!("{}", serde_json::json!({"done": true, "out": out}));
@@ -48,7 +61,7 @@ fn run() -> Result<()> {
             std::fs::write(&out, f.jpeg(88)?)?;
             println!("{}", serde_json::json!({"done": true, "out": out, "bounds": f.bounds}));
         }
-        _ => return Err(anyhow!("Lệnh phải là 'export' hoặc 'frame'")),
+        _ => return Err(anyhow!("Lệnh phải là 'export', 'frame' hoặc 'edit'")),
     }
     Ok(())
 }

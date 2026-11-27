@@ -1,0 +1,52 @@
+[tool]
+id          = "audio_stems6_sw"
+name        = "Tách 6 phần — chất lượng cao (BS-RoFormer SW)"
+version     = "0.1.0"
+sdk         = ">=0.1,<0.2"
+entry       = "tool:Stems6SWTool"
+summary     = "Tách bài hát (audio hoặc video) thành 6 phần: giọng, trống, bass, guitar, piano, nhạc cụ khác (+ nhạc nền ghép sẵn), chất lượng cao nhất hiện có cho 6 phần. Model BS-RoFormer SW (jarredou, bản sao koidn/BS-RoFormer-SW-6stem). Chạy chậm trên CPU; trọng số không ghi giấy phép: chưa dùng thương mại."
+tags        = ["stems", "vocal", "drums", "bass", "guitar", "piano", "instrumental", "separation", "roformer"]
+owners      = ["mediatool-core"]
+license     = "MIT"
+status      = "beta"
+# Nguồn hiện cạnh tên tool (repo model / thư viện / engine)
+sources     = [
+  { name = "jarredou/BS-ROFO-SW-Fixed", url = "https://huggingface.co/koidn/BS-RoFormer-SW-6stem" },
+  { name = "ZFTurbo/Music-Source-Separation-Training", url = "https://github.com/ZFTurbo/Music-Source-Separation-Training" },
+]
+
+[runtime]
+profile     = "base"
+ram_mb      = 2600
+gpu         = "optional"
+heavy       = true
+timeout_s   = 14400
+
+[dependencies]
+binaries    = ["ffmpeg"]
+
+# BS-RoFormer SW 6 stem ("BS-Rofo-SW-Fixed", jarredou). Tài khoản gốc đã bị xóa; koidn/BS-RoFormer-SW-6stem là bản sao
+# nguyên byte (sha256 khớp SHA256SUMS của bản sao và bản enerjazzer). Ghim commit + sha256. KHÔNG ghi giấy phép → chưa dùng
+# thương mại. Thay thế khi thương mại hóa: audio_stems6_htdemucs (MIT), cùng tên output (xem docs/ENGINES.md).
+[[models]]
+id          = "bs_roformer_sw"
+url         = "https://huggingface.co/koidn/BS-RoFormer-SW-6stem/resolve/833a625f574bc9db538447bcc3a43c0d2f28bd70/BS-Rofo-SW-Fixed.ckpt"
+sha256      = "24e7d35ee9c64415673d3fd33e06a67cac2c103c5df6267ba1576459c775916e"
+file        = "BS-Rofo-SW-Fixed.ckpt"
+size_mb     = 700
+license     = "không ghi (unknown)"
+source      = "https://huggingface.co/koidn/BS-RoFormer-SW-6stem"
+
+[mcp]
+expose      = true
+hint        = "Tách 6 phần CHẤT LƯỢNG CAO (giọng, trống, bass, guitar, piano, khác + nhạc nền) nhưng chậm: bài 4 phút ~11 phút trên CPU. Cần nhanh / máy yếu: audio_stems6_htdemucs (cùng output). Chỉ cần giọng + nhạc nền sạch nhất: audio_vocals_leap_xe. Nhận thẳng video."
+
+[[examples]]
+title       = "Tách 6 phần một bài hát"
+inputs      = { media = "samples/song_11s.mp3" }
+params      = {}
+
+[[examples]]
+title       = "Tách 6 phần từ MV, xuất MP3"
+inputs      = { media = "samples/song_mv.mp4" }
+params      = { format = "mp3" }

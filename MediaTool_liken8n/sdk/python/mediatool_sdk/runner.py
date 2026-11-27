@@ -134,5 +134,6 @@ def run_tool_dir(
     return {
         "summary": out.summary,
         "outputs": serialize_outputs(out.outputs, ctx.workdir),
-        "warnings": list(out.warnings),
+        # cảnh báo khai báo trong Result + cảnh báo ghi qua ctx.log.warning lúc chạy (bỏ trùng, giữ thứ tự)
+        "warnings": list(dict.fromkeys([*ctx.log.warnings, *out.warnings])),
     }

@@ -1,0 +1,43 @@
+# Model dùng chung (VieNeu-TTS v3 Turbo / Nano, Apache-2.0) khai báo một lần ở tools/_models/vieneu.toml.
+# Khóa cấp gốc: phải đứng TRƯỚC bảng [tool].
+models_from = ["vieneu"]
+
+[tool]
+id          = "speech_synthesize"
+name        = "Đọc văn bản thành giọng nói"
+version     = "0.1.0"
+sdk         = ">=0.1,<0.2"
+entry       = "tool:SpeechSynthesizeTool"
+summary     = "Đọc văn bản tiếng Việt (trộn tiếng Anh được) bằng giọng tự nhiên: 25 giọng ba miền hoặc giọng riêng đã lưu. Trả audio kèm phụ đề khớp từng câu. Chạy ngay trên máy."
+tags        = ["speech", "tts", "voice", "vietnamese", "voiceover"]
+owners      = ["mediatool-core"]
+license     = "MIT"
+status      = "beta"
+# Nguồn hiện cạnh tên tool (repo model / thư viện / engine)
+sources     = [
+  { name = "pnnbao97/VieNeu-TTS", url = "https://github.com/pnnbao97/VieNeu-TTS" },
+]
+
+[runtime]
+profile     = "base"
+ram_mb      = 2500
+gpu         = "none"
+heavy       = true
+timeout_s   = 7200
+
+[dependencies]
+binaries    = ["ffmpeg"]
+
+[mcp]
+expose      = true
+hint        = "Dùng khi cần giọng đọc / thuyết minh tiếng Việt từ văn bản. Output 'transcript' (thời gian từng câu) nối vào compose_bind để có chữ chạy theo giọng; 'audio' dùng làm tiếng cho video."
+
+[[examples]]
+title       = "Đọc bản tin ngắn bằng giọng có sẵn"
+inputs      = {}
+params      = { text = "Xin chào các bạn! Hôm nay là ngày 26/11/2026.\nGiá vàng tăng 2,5%, còn chứng khoán đi ngang.", voice = "Mai Anh" }
+
+[[examples]]
+title       = "Đọc nhanh hơn 15%, dòng phụ đề ngắn cho video dọc"
+inputs      = {}
+params      = { text = "Ba mẹo nhỏ giúp bạn quay video đẹp hơn. Thứ nhất, quay ngược sáng thật cẩn thận [cười].", voice = "Hải Đăng", speed = 1.15, caption_chars = 18, seed = 7 }

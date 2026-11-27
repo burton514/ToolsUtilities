@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "canvas": { "width": 1280, "height": 720, "fps": 30, "background": "#101018" },
+  "duration": 3,
+  "layers": [
+    { "id": "title", "type": "text", "text": "Xin chào", "start": 0, "duration": 3, "style": { "size": 96, "fill": "#FFFFFF" } }
+  ]
+}

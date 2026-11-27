@@ -88,6 +88,8 @@ unsafe impl Sync for Package {}
 
 #[derive(Default)]
 pub struct Library {
+    /// mã băm nội dung mọi gói — đổi gói nào thì khóa cache xuất video đổi theo
+    pub fingerprint: u64,
     pub effects: BTreeMap<String, Package>,
     /// gói lỗi (không đọc được / shader không biên dịch được) — báo cho người viết gói
     pub problems: Vec<String>,
@@ -110,6 +112,13 @@ impl Library {
         let mut dirs: Vec<PathBuf> = rd.filter_map(|e| e.ok().map(|e| e.path())).filter(|p| p.is_dir()).collect();
         dirs.sort();
         for d in dirs {
+            for f in ["effect.toml", "effect.sksl"] {
+                if let Ok(b) = std::fs::read(d.join(f)) {
+                    for x in b {
+                        lib.fingerprint = (lib.fingerprint ^ x as u64).wrapping_mul(0x100000001b3);
+                    }
+                }
+            }
             match load_package(&d) {
                 Ok(p) => {
                     lib.effects.insert(p.info.meta.id.clone(), p);

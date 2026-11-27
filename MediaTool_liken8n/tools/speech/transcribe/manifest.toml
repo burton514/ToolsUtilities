@@ -1,0 +1,101 @@
+[tool]
+id          = "speech_transcribe"
+name        = "Chuyển giọng nói thành chữ"
+version     = "0.3.1"
+sdk         = ">=0.1,<0.2"
+entry       = "tool:SpeechTranscribeTool"
+summary     = "Nghe video / audio và chép lời thành phụ đề .srt kèm thời gian từng từ. Tiếng Việt dùng PhoWhisper (VinAI), tiếng Anh và ngoại ngữ dùng Whisper; chạy ngay trên máy, không gửi đi đâu."
+tags        = ["speech", "transcribe", "subtitle", "whisper", "phowhisper", "asr", "vietnamese"]
+owners      = ["mediatool-core"]
+license     = "MIT"
+status      = "beta"
+# Nguồn hiện cạnh tên tool (repo model / thư viện / engine)
+sources     = [
+  { name = "vinai/PhoWhisper", url = "https://github.com/VinAIResearch/PhoWhisper" },
+  { name = "SYSTRAN/faster-whisper", url = "https://github.com/SYSTRAN/faster-whisper" },
+]
+
+[runtime]
+profile     = "base"
+ram_mb      = 2500
+gpu         = "optional"
+heavy       = true
+timeout_s   = 7200
+
+[dependencies]
+binaries    = ["ffmpeg"]
+
+# Mỗi ngôn ngữ một bộ model (bảng chọn trong tool.py): tiếng Việt → PhoWhisper, còn lại → Whisper. Ghim theo commit, kiểm sha256.
+
+# Whisper (OpenAI, MIT) bản CTranslate2 của Systran (MIT).
+[[models]]
+id          = "whisper_base"
+size_mb     = 145
+license     = "MIT"
+source      = "https://huggingface.co/Systran/faster-whisper-base"
+files = [
+  { path = "model.bin",      url = "https://huggingface.co/Systran/faster-whisper-base/resolve/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/model.bin",      sha256 = "d01c3014881c9c6f3133c182f3d2887eb6ca1c789a7538c5c007196857a0a6a9" },
+  { path = "config.json",    url = "https://huggingface.co/Systran/faster-whisper-base/resolve/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/config.json",    sha256 = "56a6d8110d311f19c8f0471e562832c7527f146b567275bfca59fcf7c184da9a" },
+  { path = "tokenizer.json", url = "https://huggingface.co/Systran/faster-whisper-base/resolve/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/tokenizer.json", sha256 = "fb7b63191e9bb045082c79fd742a3106a12c99513ab30df4a0d47fa6cb6fd0ab" },
+  { path = "vocabulary.txt", url = "https://huggingface.co/Systran/faster-whisper-base/resolve/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/vocabulary.txt", sha256 = "34ce3fe1c5041027b3f8d42912270993f986dbc4bb34cf27f951e34a1e453913" },
+]
+
+[[models]]
+id          = "whisper_small"
+size_mb     = 465
+license     = "MIT"
+source      = "https://huggingface.co/Systran/faster-whisper-small"
+files = [
+  { path = "model.bin",      url = "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/model.bin",      sha256 = "3e305921506d8872816023e4c273e75d2419fb89b24da97b4fe7bce14170d671" },
+  { path = "config.json",    url = "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/config.json",    sha256 = "b55496ac7940a7ae47d2c01eab40edfd8701feec1229d9cce3b40014383fb828" },
+  { path = "tokenizer.json", url = "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/tokenizer.json", sha256 = "fb7b63191e9bb045082c79fd742a3106a12c99513ab30df4a0d47fa6cb6fd0ab" },
+  { path = "vocabulary.txt", url = "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/vocabulary.txt", sha256 = "34ce3fe1c5041027b3f8d42912270993f986dbc4bb34cf27f951e34a1e453913" },
+]
+
+# PhoWhisper (VinAI Research, BSD-3-Clause) — Whisper tinh chỉnh trên 844 giờ tiếng Việt nhiều vùng miền.
+# small: bản CTranslate2 int8 (chỉ chuyển đổi, không đổi trọng số); medium: bản CTranslate2 fp16 từ commit 55a7e3eb của VinAI
+# (có conversion.json ghi mã băm + phiên bản bộ chuyển đổi).
+[[models]]
+id          = "phowhisper_small"
+size_mb     = 240
+license     = "BSD-3-Clause"
+source      = "https://huggingface.co/vinai/PhoWhisper-small"
+files = [
+  { path = "model.bin",                url = "https://huggingface.co/mrdoanit/PhoWhisper-small-ct2-int8/resolve/b22e27c9824bf6b02149606be8c4411ceb5dd59f/model.bin",                sha256 = "25c9e77010ce22372d6c12831d2f33fb1a86bdceb9fa9cd41f4596fd37b71db1" },
+  { path = "config.json",              url = "https://huggingface.co/mrdoanit/PhoWhisper-small-ct2-int8/resolve/b22e27c9824bf6b02149606be8c4411ceb5dd59f/config.json",              sha256 = "b55496ac7940a7ae47d2c01eab40edfd8701feec1229d9cce3b40014383fb828" },
+  { path = "tokenizer.json",           url = "https://huggingface.co/mrdoanit/PhoWhisper-small-ct2-int8/resolve/b22e27c9824bf6b02149606be8c4411ceb5dd59f/tokenizer.json",           sha256 = "c218b12acbc2168cad951ae8a8c8d345df09dfa63b787214d4ac27762170fd7b" },
+  { path = "preprocessor_config.json", url = "https://huggingface.co/mrdoanit/PhoWhisper-small-ct2-int8/resolve/b22e27c9824bf6b02149606be8c4411ceb5dd59f/preprocessor_config.json", sha256 = "a6a76d28c93edb273669eb9e0b0636a2bddbb1272c3261e47b7ca6dfdbac1b8d" },
+  { path = "vocabulary.json",          url = "https://huggingface.co/mrdoanit/PhoWhisper-small-ct2-int8/resolve/b22e27c9824bf6b02149606be8c4411ceb5dd59f/vocabulary.json",          sha256 = "5ad28279db5e546349708b9a74736e2c018737ac5a600f1048f1f26c99b85b47" },
+]
+
+[[models]]
+id          = "phowhisper_medium"
+size_mb     = 1461
+license     = "BSD-3-Clause"
+source      = "https://huggingface.co/vinai/PhoWhisper-medium"
+files = [
+  { path = "model.bin",                url = "https://huggingface.co/nunu-willump/PhoWhisper-medium-ct2/resolve/84fd238d9263ad77752ebb2fafb3402049199ef0/model.bin",                sha256 = "0fa00f4407a8d7099762e60e36e44eca81279ec17cf4708df040ffd6bc337b7e" },
+  { path = "config.json",              url = "https://huggingface.co/nunu-willump/PhoWhisper-medium-ct2/resolve/84fd238d9263ad77752ebb2fafb3402049199ef0/config.json",              sha256 = "3622a2ddc41ec0e0fd4e68c13c6830f03b90c38d89aaad184de02c8c642cf807" },
+  { path = "tokenizer.json",           url = "https://huggingface.co/nunu-willump/PhoWhisper-medium-ct2/resolve/84fd238d9263ad77752ebb2fafb3402049199ef0/tokenizer.json",           sha256 = "ef1cbdefa54ee88b08dccac83fc994fa69e45988abf0f46fecfeb2e08ac9e306" },
+  { path = "preprocessor_config.json", url = "https://huggingface.co/nunu-willump/PhoWhisper-medium-ct2/resolve/84fd238d9263ad77752ebb2fafb3402049199ef0/preprocessor_config.json", sha256 = "a6a76d28c93edb273669eb9e0b0636a2bddbb1272c3261e47b7ca6dfdbac1b8d" },
+  { path = "vocabulary.json",          url = "https://huggingface.co/nunu-willump/PhoWhisper-medium-ct2/resolve/84fd238d9263ad77752ebb2fafb3402049199ef0/vocabulary.json",          sha256 = "5ad28279db5e546349708b9a74736e2c018737ac5a600f1048f1f26c99b85b47" },
+]
+
+[mcp]
+expose      = true
+hint        = "Dùng khi cần phụ đề / lời thoại từ video hoặc audio có người nói (tiếng Việt, Anh, Trung, Nhật, Hàn, Thái, Pháp, Đức, Tây Ban Nha). Chọn đúng 'language'. Output 'subtitle' (.srt), 'text' (.txt) và 'transcript' (thời gian từng từ) nối thẳng vào compose_bind / speech_dub."
+
+[[examples]]
+title       = "Chép lời đoạn nói tiếng Việt (PhoWhisper)"
+inputs      = { media = "samples/speech_vi.mp3" }
+params      = { model = "base", language = "vi" }
+
+[[examples]]
+title       = "Chép lời đoạn nói tiếng Anh (Whisper)"
+inputs      = { media = "samples/speech.mp3" }
+params      = { model = "base", language = "en" }
+
+[[examples]]
+title       = "Video nói chuyện → phụ đề ngắn kiểu TikTok (tối đa 18 ký tự mỗi dòng)"
+inputs      = { media = "samples/talk.mp4" }
+params      = { model = "base", language = "en", max_chars = 18 }

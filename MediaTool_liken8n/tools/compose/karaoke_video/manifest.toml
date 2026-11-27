@@ -1,0 +1,29 @@
+# Chuỗi đã lưu: core đọc chain.json và chạy từng bước thành job con. Không có code riêng.
+# Luồng B (Karaoke) của mục tiêu đợt 1: tách giọng → căn lời trên giọng đã tách → karaoke trên nhạc nền + hình gốc.
+[tool]
+id          = "compose_karaoke_video"
+name        = "Karaoke từ video bài hát"
+version     = "0.2.0"
+sdk         = ">=0.1,<0.2"
+entry       = "chain:chain.json"
+summary     = "Đưa video bài hát (MV) + lời: tách giọng ca sĩ khỏi nhạc nền, căn thời gian từng chữ trên giọng đã tách, rồi làm video karaoke — hình gốc, nhạc nền không lời, chữ đổi màu theo lời hát — kèm .lrc, file nhạc nền và giọng."
+tags        = ["chain", "karaoke", "lyrics", "video", "instrumental", "stems"]
+owners      = ["mediatool-core"]
+license     = "MIT"
+status      = "beta"
+
+[runtime]
+profile     = "base"
+ram_mb      = 50
+gpu         = "none"
+heavy       = true
+timeout_s   = 10800
+
+[mcp]
+expose      = true
+hint        = "Dùng khi người dùng có video bài hát (MV) + lời và muốn video karaoke (bỏ giọng ca sĩ, giữ hình). Chậm vì bước tách giọng BS-RoFormer (~5–6 lần độ dài bài trên CPU); cần nhanh thì mở chuỗi và thay bước tách bằng audio_stems6_htdemucs. Chỉ có file nhạc thì dùng compose_karaoke. Model tách giọng và model căn mặc định chưa dùng thương mại được."
+
+[[examples]]
+title       = "MV mẫu + lời → video karaoke"
+inputs      = { video = "samples/song_mv.mp4", lyrics = "samples/lyrics.txt" }
+params      = { quality = "draft" }

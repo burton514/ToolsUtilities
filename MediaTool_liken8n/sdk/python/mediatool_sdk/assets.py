@@ -13,13 +13,16 @@ from pydantic import BaseModel, ConfigDict, Field
 # Input khai báo format bên trái nhận được asset có format bên phải.
 FORMAT_COMPAT: dict[str, set[str]] = {
     "media": {"media", "video", "audio"},
-    "json": {"json", "transcript", "timed_lyrics", "beat_grid", "scene_list", "time_ranges", "composition", "text_style"},
+    "json": {"json", "transcript", "timed_lyrics", "beat_grid", "scene_list", "time_ranges", "composition", "text_style", "voice"},
 }
 
 
 def accepts(expected: str, actual: str) -> bool:
     """Input khai báo `expected` có nhận asset `actual` không. "file" nhận mọi loại."""
-    return expected in ("file", actual) or actual in FORMAT_COMPAT.get(expected, set())
+    if expected in ("file", actual) or actual in FORMAT_COMPAT.get(expected, set()):
+        return True
+    # JSON chưa gắn loại (file .json người dùng tải lên) cắm được vào ô thuộc họ JSON; tool tự kiểm nội dung
+    return actual == "json" and expected in FORMAT_COMPAT["json"]
 
 
 class Asset(BaseModel):
@@ -85,6 +88,14 @@ class SubtitleFile(Asset):
     FORMAT: ClassVar[str] = "subtitle"
 
 
+class TextFile(Asset):
+    """Văn bản thuần (.txt, UTF-8): lời đọc, kịch bản, bản chép lời."""
+    FORMAT: ClassVar[str] = "text"
+
+    def read(self) -> str:
+        return self.path.read_text(encoding="utf-8-sig", errors="replace")
+
+
 class FontFile(Asset):
     FORMAT: ClassVar[str] = "font"
 
@@ -139,11 +150,16 @@ class TextStyle(JsonData):
     FORMAT: ClassVar[str] = "text_style"
 
 
+class VoiceProfile(JsonData):
+    """Hồ sơ giọng đọc (speech_voice_add tạo ra): clip mẫu + đặc trưng giọng cho từng model TTS."""
+    FORMAT: ClassVar[str] = "voice"
+
+
 ASSET_TYPES: dict[str, type[Asset]] = {
     cls.FORMAT: cls
     for cls in (
-        MediaFile, VideoFile, AudioFile, ImageFile, SubtitleFile, FontFile, LutFile, JsonData,
-        ImageSequence, Transcript, TimedLyrics, BeatGrid, SceneList, TimeRanges, Composition, TextStyle,
+        MediaFile, VideoFile, AudioFile, ImageFile, SubtitleFile, TextFile, FontFile, LutFile, JsonData,
+        ImageSequence, Transcript, TimedLyrics, BeatGrid, SceneList, TimeRanges, Composition, TextStyle, VoiceProfile,
     )
 }
 
@@ -152,6 +168,7 @@ _EXT_FORMATS = {
     "audio": {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".wma", ".aiff"},
     "image": {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"},
     "subtitle": {".srt", ".ass", ".ssa", ".vtt", ".lrc"},
+    "text": {".txt", ".md"},
     "font": {".ttf", ".otf", ".woff", ".woff2"},
     "lut": {".cube"},
     "json": {".json"},

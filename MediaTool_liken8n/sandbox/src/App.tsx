@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { marked } from "marked";
 import {
-  BookOpen, Clapperboard, FlaskConical, History as HistoryIcon, House, LayoutGrid, Moon, PanelLeftClose, PanelLeftOpen, Sun, Wrench, Workflow,
+  BookOpen, Clapperboard, FlaskConical, HeartPulse, History as HistoryIcon, House, LayoutGrid, Moon, PanelLeftClose, PanelLeftOpen, Sun, Wrench, Workflow,
 } from "lucide-react";
 import { Badge, Button, Card, EmptyState, Notice, PageHeader } from "@mediatool/ui";
 import { MediaToolClient, type MiniAppEntry, type ToolDetail, type ToolSummary } from "@mediatool/api-client";
@@ -12,15 +12,17 @@ import { Editor } from "@mediatool/editor";
 import { localMiniApps, type LocalMiniApp } from "./miniapps";
 import { TestBench } from "./TestBench";
 import { ChainEditor } from "./ChainEditor";
+import { ChainNav } from "./ChainNav";
 import { Home } from "./pages/Home";
 import { Catalog } from "./pages/Catalog";
 import { ToolRunner } from "./pages/ToolRunner";
 import { History } from "./pages/History";
+import { Health } from "./pages/Health";
 import { categoryOf } from "./meta";
 
 export type Route =
   | { page: "home" } | { page: "editor" } | { page: "tools" } | { page: "tool"; id: string } | { page: "chain" }
-  | { page: "apps" } | { page: "history" } | { page: "bench" } | { page: "devdocs" };
+  | { page: "apps" } | { page: "history" } | { page: "health" } | { page: "bench" } | { page: "devdocs" };
 
 const client = new MediaToolClient({ baseUrl: "" }); // Vite proxy /v1 → core
 
@@ -31,6 +33,7 @@ const NAV: { page: Route["page"]; label: string; icon: JSX.Element; dev?: boolea
   { page: "chain", label: "Quy trình tự động", icon: <Workflow size={18} /> },
   { page: "apps", label: "Ứng dụng", icon: <LayoutGrid size={18} /> },
   { page: "history", label: "Lịch sử xử lý", icon: <HistoryIcon size={18} /> },
+  { page: "health", label: "Sức khỏe hệ thống", icon: <HeartPulse size={18} /> },
   { page: "bench", label: "Kiểm thử tự động", icon: <FlaskConical size={18} />, dev: true },
   { page: "devdocs", label: "Tài liệu kỹ thuật", icon: <BookOpen size={18} />, dev: true },
 ];
@@ -149,6 +152,11 @@ export function App() {
     setRoute(r);
   }, []);
   const active = route.page === "tool" ? "tools" : route.page;
+  // trình nối chuỗi giữ nguyên khi sang trang khác (chuỗi đang chạy vẫn chạy, quay lại thấy đúng chỗ cũ)
+  const [chainMounted, setChainMounted] = useState(route.page === "chain");
+  useEffect(() => {
+    if (route.page === "chain") setChainMounted(true);
+  }, [route.page]);
 
   if (workspaceTool) return <Workspace client={client} tool={workspaceTool} onExit={() => setWorkspaceTool(null)} />;
   if (openApp) return <Workspace client={client} manifest={openApp.meta.manifest} app={openApp.def} strings={openApp.meta.strings} onExit={() => setOpenApp(null)} />;
@@ -165,9 +173,13 @@ export function App() {
         </div>
         <nav className="side-nav">
           {NAV.filter((n) => !n.dev).map((n) => (
-            <button key={n.page} className={`side-item ${active === n.page ? "on" : ""}`} onClick={() => go({ page: n.page } as Route)} title={collapsed ? n.label : undefined} aria-current={active === n.page ? "page" : undefined}>
-              {n.icon}{!collapsed && <span>{n.label}</span>}
-            </button>
+            <div key={n.page} className="side-entry">
+              <button className={`side-item ${active === n.page ? "on" : ""}`} onClick={() => go({ page: n.page } as Route)} title={collapsed ? n.label : undefined} aria-current={active === n.page ? "page" : undefined}>
+                {n.icon}{!collapsed && <span>{n.label}</span>}
+              </button>
+              {/* chuỗi = dự án: danh sách nằm ngay dưới mục Quy trình tự động */}
+              {n.page === "chain" && !collapsed && <ChainNav client={client} onShow={() => go({ page: "chain" })} />}
+            </div>
           ))}
           <div className="side-sep">{!collapsed && "Nhà phát triển"}</div>
           {NAV.filter((n) => n.dev).map((n) => (
@@ -194,9 +206,10 @@ export function App() {
         {route.page === "editor" && <Editor client={client} />}
         {route.page === "tools" && <Catalog client={client} go={go} />}
         {route.page === "tool" && <ToolRunner key={route.id} client={client} toolId={route.id} onBack={() => go({ page: "tools" })} />}
-        {route.page === "chain" && <ChainEditor client={client} />}
+        {chainMounted && <div className="chain-host" hidden={route.page !== "chain"}><ChainEditor client={client} /></div>}
         {route.page === "apps" && <AppsPage onOpen={async (m) => setOpenApp({ meta: m, def: await m.load() })} />}
         {route.page === "history" && <History client={client} />}
+        {route.page === "health" && <Health client={client} />}
         {route.page === "bench" && <div className="sb-page wide"><PageHeader title="Kiểm thử tự động" description="Chạy tất cả ví dụ của mọi công cụ, đo thời gian và RAM, so với khai báo." /><TestBench client={client} /></div>}
         {route.page === "devdocs" && <DevDocs onWorkspace={setWorkspaceTool} />}
       </main>

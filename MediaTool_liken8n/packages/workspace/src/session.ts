@@ -49,12 +49,14 @@ export interface SessionState {
 
 const FORMAT_COMPAT: Record<string, string[]> = {
   media: ["video", "audio"],
-  json: ["transcript", "timed_lyrics", "beat_grid", "scene_list", "time_ranges", "composition", "text_style"],
+  json: ["transcript", "timed_lyrics", "beat_grid", "scene_list", "time_ranges", "composition", "text_style", "voice"],
 };
 
 export function accepts(expected: string | null | undefined, actual: string): boolean {
   if (!expected || expected === "file" || expected === actual) return true;
-  return (FORMAT_COMPAT[expected] ?? []).includes(actual);
+  if ((FORMAT_COMPAT[expected] ?? []).includes(actual)) return true;
+  // JSON chưa gắn loại (file .json người dùng tải lên) cắm được vào ô thuộc họ JSON; tool tự kiểm nội dung
+  return actual === "json" && FORMAT_COMPAT.json.includes(expected);
 }
 
 export function toRef(a: { id?: string; asset_id?: string; format: string; filename?: string; size_bytes?: number }): AssetRef {

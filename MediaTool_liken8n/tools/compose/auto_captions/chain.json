@@ -1,0 +1,117 @@
+{
+  "inputs": [
+    {
+      "name": "video",
+      "format": "video",
+      "description": "Video có người nói"
+    }
+  ],
+  "params": {
+    "type": "object",
+    "properties": {
+      "language": {
+        "$from": "speech_transcribe.language"
+      },
+      "model": {
+        "$from": "speech_transcribe.model"
+      },
+      "style": {
+        "type": "string",
+        "default": "tiktok",
+        "description": "Kiểu chữ phụ đề",
+        "enum": [
+          "tiktok",
+          "karaoke",
+          "subtitle",
+          "cinema",
+          "lyric"
+        ],
+        "x-labels": {
+          "tiktok": "TikTok (từ đang nói đổi màu)",
+          "karaoke": "Karaoke",
+          "subtitle": "Phụ đề thường",
+          "cinema": "Điện ảnh",
+          "lyric": "Lời bài hát nghệ thuật"
+        }
+      },
+      "max_chars": {
+        "type": "integer",
+        "default": 18,
+        "minimum": 0,
+        "maximum": 120,
+        "description": "Số ký tự tối đa mỗi dòng (0 = nguyên câu)"
+      },
+      "position": {
+        "type": "string",
+        "default": "middle",
+        "description": "Vị trí chữ",
+        "enum": [
+          "bottom",
+          "middle",
+          "top"
+        ],
+        "x-labels": {
+          "bottom": "Dưới",
+          "middle": "Giữa",
+          "top": "Trên"
+        }
+      },
+      "quality": {
+        "type": "string",
+        "default": "standard",
+        "description": "Chất lượng video: draft = nhanh để xem thử",
+        "enum": [
+          "draft",
+          "standard",
+          "high"
+        ]
+      }
+    }
+  },
+  "steps": [
+    {
+      "id": "listen",
+      "title": "Nghe và chép lời",
+      "tool": "speech_transcribe",
+      "inputs": {
+        "media": "$input.video"
+      },
+      "params": {
+        "model": "$param.model",
+        "language": "$param.language",
+        "max_chars": "$param.max_chars"
+      }
+    },
+    {
+      "id": "subs",
+      "title": "Chèn phụ đề",
+      "tool": "compose_bind",
+      "inputs": {
+        "video": "$input.video",
+        "data": "$listen.transcript"
+      },
+      "params": {
+        "style": "$param.style",
+        "position": "$param.position",
+        "quality": "$param.quality"
+      }
+    }
+  ],
+  "outputs": {
+    "video": {
+      "from": "$subs.video",
+      "format": "video",
+      "description": "Video đã có phụ đề tự động"
+    },
+    "subtitle": {
+      "from": "$listen.subtitle",
+      "format": "subtitle",
+      "description": "Phụ đề .srt — sửa lại nếu cần rồi dùng compose_bind"
+    },
+    "composition": {
+      "from": "$subs.composition",
+      "format": "composition",
+      "description": "Bản dựng phần phụ đề — chỉnh tiếp bằng compose_edit"
+    }
+  }
+}

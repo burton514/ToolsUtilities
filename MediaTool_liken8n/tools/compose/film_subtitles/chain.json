@@ -1,0 +1,54 @@
+{
+  "inputs": [
+    { "name": "video", "format": "video", "description": "Video cần làm" },
+    { "name": "subtitle", "format": "subtitle", "description": "Phụ đề .srt/.vtt hoặc lời .lrc có thời gian" }
+  ],
+  "params": {
+    "type": "object",
+    "properties": {
+      "look": {
+        "type": "string",
+        "default": "teal_orange",
+        "description": "Tông màu phim",
+        "enum": ["teal_orange", "golden_hour", "vintage", "faded_film", "noir", "old_film", "cyberpunk"],
+        "x-labels": {
+          "teal_orange": "Cam – xanh điện ảnh", "golden_hour": "Hoàng hôn", "vintage": "Cổ điển", "faded_film": "Phim phai",
+          "noir": "Đen trắng tương phản", "old_film": "Phim cũ", "cyberpunk": "Cyberpunk"
+        }
+      },
+      "style": {
+        "type": "string",
+        "default": "cinema",
+        "description": "Kiểu chữ phụ đề",
+        "enum": ["cinema", "subtitle", "tiktok", "karaoke", "lyric"],
+        "x-labels": { "cinema": "Điện ảnh", "subtitle": "Phụ đề thường", "tiktok": "TikTok", "karaoke": "Karaoke", "lyric": "Lời bài hát nghệ thuật" }
+      },
+      "quality": {
+        "type": "string",
+        "default": "standard",
+        "description": "Chất lượng video: draft = nhanh để xem thử",
+        "enum": ["draft", "standard", "high"]
+      }
+    }
+  },
+  "steps": [
+    {
+      "id": "look",
+      "title": "Áp tông màu phim",
+      "tool": "media_apply",
+      "inputs": { "video": "$input.video" },
+      "params": { "effect": "$param.look", "quality": "$param.quality" }
+    },
+    {
+      "id": "subs",
+      "title": "Chèn phụ đề",
+      "tool": "compose_bind",
+      "inputs": { "video": "$look.video", "subtitle": "$input.subtitle" },
+      "params": { "style": "$param.style", "quality": "$param.quality" }
+    }
+  ],
+  "outputs": {
+    "video": { "from": "$subs.video", "format": "video", "description": "Video đã có tông màu phim và phụ đề" },
+    "composition": { "from": "$subs.composition", "format": "composition", "description": "Bản dựng phần phụ đề — chỉnh tiếp bằng compose_edit" }
+  }
+}

@@ -1,0 +1,199 @@
+{
+  "id": "title_card",
+  "name": "Màn tiêu đề",
+  "description": "Tiêu đề to bật lên giữa khung, dòng phụ hiện dần, vạch màu quét ngang. Hợp làm mở đầu video.",
+  "output": "video",
+  "duration": 4,
+  "slots": {
+    "title": {
+      "label": "Tiêu đề",
+      "default": "Tiêu đề video"
+    },
+    "subtitle": {
+      "label": "Dòng phụ",
+      "default": "Dòng mô tả ngắn"
+    },
+    "image": {
+      "label": "Ảnh nền",
+      "kind": "image"
+    },
+    "video": {
+      "label": "Video nền",
+      "kind": "video"
+    },
+    "accent": {
+      "label": "Màu nhấn",
+      "default": "#FFC83D"
+    }
+  },
+  "composition": {
+    "version": 1,
+    "canvas": {
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "background": "#101018"
+    },
+    "duration": 4,
+    "layers": [
+      {
+        "id": "bg",
+        "name": "bg",
+        "type": "shape",
+        "shape": "rect",
+        "x": 0.5,
+        "y": 0.5,
+        "w": 1,
+        "h": 1,
+        "fill": {
+          "type": "radial",
+          "stops": [
+            "#2A2350",
+            "#0B0B14"
+          ],
+          "cx": 0.5,
+          "cy": 0.45,
+          "r": 0.8
+        },
+        "corner_radius": 0,
+        "start": 0,
+        "duration": 4
+      },
+      {
+        "id": "bg_image",
+        "name": "Nền",
+        "type": "image",
+        "source": "{{image}}",
+        "fit": "cover",
+        "start": 0,
+        "duration": 4,
+        "_requires": "image",
+        "effects": [
+          {
+            "type": "dim",
+            "amount": 35
+          }
+        ]
+      },
+      {
+        "id": "bg_video",
+        "name": "Nền",
+        "type": "video",
+        "source": "{{video}}",
+        "fit": "cover",
+        "start": 0,
+        "duration": 4,
+        "_requires": "video",
+        "trim_start": 0,
+        "volume": 100,
+        "muted": false,
+        "effects": [
+          {
+            "type": "dim",
+            "amount": 35
+          }
+        ]
+      },
+      {
+        "id": "title",
+        "name": "title",
+        "type": "text",
+        "text": "{{title}}",
+        "x": 0.5,
+        "y": 0.44,
+        "start": 0.2,
+        "duration": 3.8,
+        "style": {
+          "font": "Noto Sans",
+          "weight": 900,
+          "size": 150,
+          "fill": "#FFFFFF",
+          "align": "center",
+          "max_width": 0.86
+        },
+        "strokes": [
+          {
+            "color": "#000000",
+            "width": 4
+          }
+        ],
+        "shadows": [
+          {
+            "color": "#00000099",
+            "x": 0,
+            "y": 8,
+            "blur": 16
+          }
+        ],
+        "animations": [
+          {
+            "preset": "pop_bounce",
+            "kind": "in",
+            "duration": 0.7
+          },
+          {
+            "preset": "fade",
+            "kind": "out",
+            "duration": 0.4
+          }
+        ]
+      },
+      {
+        "id": "bar",
+        "name": "bar",
+        "type": "shape",
+        "shape": "rect",
+        "x": 0.5,
+        "y": 0.56,
+        "w": 0.22,
+        "h": 0.008,
+        "fill": "{{accent}}",
+        "corner_radius": 4,
+        "start": 0.6,
+        "duration": 3.4,
+        "animations": [
+          {
+            "preset": "wipe_right",
+            "kind": "in",
+            "duration": 0.5
+          },
+          {
+            "preset": "fade",
+            "kind": "out",
+            "duration": 0.4
+          }
+        ]
+      },
+      {
+        "id": "subtitle",
+        "name": "subtitle",
+        "type": "text",
+        "text": "{{subtitle}}",
+        "x": 0.5,
+        "y": 0.64,
+        "start": 0.9,
+        "duration": 3.1,
+        "style": {
+          "font": "Noto Sans",
+          "weight": 500,
+          "size": 56,
+          "fill": "#E8E8F0",
+          "align": "center",
+          "max_width": 0.86
+        },
+        "animations": [
+          {
+            "preset": "fade_up",
+            "kind": "in",
+            "duration": 0.6
+          },
+          {
+            "preset": "fade",
+            "kind": "out",
+            "duration": 0.4
+          }
+        ]
+      }
+    ]
+  }
+}

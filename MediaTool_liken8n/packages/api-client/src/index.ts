@@ -28,6 +28,7 @@ export interface FieldSpec {
 }
 
 export type Status = { state: "available" } | { state: "unavailable"; reason: string };
+export interface SourceRef { name: string; url: string }
 
 export interface ToolSummary {
   id: string;
@@ -43,6 +44,64 @@ export interface ToolSummary {
   outputs: FieldSpec[] | null;
   has_docs: boolean;
   example_count: number;
+  /** Nguồn (repo model / thư viện / engine) — tool tự khai; chuỗi: core gom từ các bước */
+  sources?: SourceRef[];
+  /** "tool" | "chain" — chuỗi đã lưu cũng là một tool */
+  kind?: "tool" | "chain";
+  /** vị trí trong danh sách yêu thích (đánh sao), null = chưa đánh sao */
+  favorite?: number | null;
+  /** chuỗi của người dùng: đổi tên / sửa / xóa được (chuỗi dựng sẵn thì không) */
+  editable?: boolean;
+}
+
+/** Chuỗi (dựng sẵn hoặc của người dùng) để mở trên trình nối chuỗi. */
+export interface ChainDoc {
+  id: string;
+  name: string | null;
+  summary: string | null;
+  /** nội dung chain.json (inputs, params, steps, outputs) */
+  chain: ChainDef | null;
+  /** bố cục trên trình nối chuỗi (chỉ chuỗi lưu từ trình nối mới có) */
+  graph: unknown | null;
+  editable: boolean;
+  status: Status;
+}
+
+export interface ChainDef {
+  inputs: { name: string; format?: string | null; description?: string; required?: boolean; multiple?: boolean }[];
+  params?: { type?: string; properties?: Record<string, Record<string, unknown>> } | null;
+  steps: { id: string; tool: string; title?: string; inputs: Record<string, string | string[]>; params: Record<string, unknown> }[];
+  outputs: Record<string, { from: string; format?: string | null; description?: string }>;
+}
+
+export interface HealthModel { id: string; size_mb: number; license: string; ready: boolean }
+export interface HealthTool {
+  id: string; name: string; category: string; kind: string; status: Status;
+  gpu: string | null; heavy: boolean | null; ram_mb: number | null; models: HealthModel[]; sources?: SourceRef[];
+}
+/** Môi trường chạy tool do worker Python tự kiểm (mục nào lỗi thì có `error`). */
+export interface HealthEnvironment {
+  error?: string;
+  python?: string;
+  sdk?: string | null;
+  packages?: { name: string; version: string | null; purpose: string }[];
+  ffmpeg?: { ok: boolean; path: string | null; version?: string | null; ffprobe?: boolean; features?: Record<string, boolean>; error?: string };
+  gpu?: {
+    nvidia: { name: string; memory_total_mb: number; memory_used_mb: number; driver: string }[];
+    onnxruntime: { version: string; providers: string[] } | null; cuda_usable: boolean; note: string | null; error?: string;
+  };
+  system?: {
+    os?: string; cpu?: string | null; cpu_count?: number | null; avx512?: boolean; ram_total_mb?: number | null; ram_available_mb?: number | null;
+    disk?: { path: string; total_mb: number; free_mb: number } | null; error?: string;
+  };
+}
+export interface HealthDetails {
+  core: { version: string; protocol: string | number; jobs: { ram_budget_mb: number; used_ram_mb: number; running: number; queued: number };
+    python: string; data_dir: string; local_paths: boolean; device: string };
+  environment: HealthEnvironment;
+  worker_ms: number;
+  tools: HealthTool[];
+  miniapps: { name: string; status: Status }[];
 }
 
 export interface ToolDetail extends ToolSummary {
@@ -208,11 +267,26 @@ export class MediaToolClient {
 
   health = () => this.req<{ ok: boolean; version: string }>("GET", "/health");
   system = () => this.req<Record<string, unknown>>("GET", "/v1/system");
+  /** Sức khỏe chi tiết: core, môi trường chạy tool (thư viện, FFmpeg, GPU, RAM, ổ đĩa), từng tool + model đã tải chưa. */
+  healthDetails = () => this.req<HealthDetails>("GET", "/v1/health/details");
   listTools = async () => (await this.req<{ tools: ToolSummary[] }>("GET", "/v1/tools")).tools;
   getTool = (id: string) => this.req<ToolDetail>("GET", `/v1/tools/${id}`);
   toolDocs = (id: string) => this.req<string>("GET", `/v1/tools/${id}/docs`);
   listMiniApps = async () => (await this.req<{ miniapps: MiniAppEntry[] }>("GET", "/v1/miniapps")).miniapps;
   reloadRegistry = () => this.req<{ tools: number; miniapps: number }>("POST", "/v1/registry/reload");
+
+  /** Chuỗi: đọc (dựng sẵn hoặc của người dùng), lưu mới, sửa / đổi tên, xóa (chỉ chuỗi của người dùng). */
+  getChain = (id: string) => this.req<ChainDoc>("GET", `/v1/chains/${id}`);
+  createChain = (body: { name: string; summary?: string; chain: ChainDef; graph?: unknown }) =>
+    this.req<{ id: string; name: string; status: Status }>("POST", "/v1/chains", body);
+  updateChain = (id: string, body: { name?: string; summary?: string; chain?: ChainDef; graph?: unknown }) =>
+    this.req<{ id: string; name: string; status: Status }>("PUT", `/v1/chains/${id}`, body);
+  deleteChain = (id: string) => this.req<{ deleted: string }>("DELETE", `/v1/chains/${id}`);
+
+  /** Yêu thích (đánh sao) tool / chuỗi — lưu trên máy chủ. */
+  listFavorites = async () => (await this.req<{ favorites: string[] }>("GET", "/v1/favorites")).favorites;
+  setFavorite = async (id: string, on: boolean) =>
+    (await this.req<{ favorites: string[] }>(on ? "PUT" : "DELETE", `/v1/favorites/${id}`)).favorites;
 
   listAssets = async () => (await this.req<{ assets: Asset[] }>("GET", "/v1/assets")).assets;
   getAsset = (id: string) => this.req<Asset>("GET", `/v1/assets/${id}`);

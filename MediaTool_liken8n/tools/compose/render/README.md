@@ -4,11 +4,12 @@
 | | |
 |---|---|
 | **ID** | `compose_render` |
+| **Nguồn** | MediaTool engine (Skia + FFmpeg) · [rust-skia/rust-skia](https://github.com/rust-skia/rust-skia) |
 | **Category** | `compose` |
-| **Phiên bản** | 0.1.0 · SDK `>=0.1,<0.2` |
+| **Phiên bản** | 0.1.2 · SDK `>=0.1,<0.2` |
 | **Trạng thái** | beta |
 | **Người phụ trách** | mediatool-core |
-| **Runtime** | profile `base` · RAM khai báo 900 MB · GPU: none · heavy: yes |
+| **Runtime** | profile `base` · RAM khai báo 2400 MB · GPU: none · heavy: yes |
 | **License code** | MIT |
 <!-- AUTO:header:end -->
 
@@ -34,7 +35,7 @@ Biến một **composition** (bản dựng nhiều lớp: video, ảnh, chữ ng
 ### Params
 | Tên | Kiểu | Mặc định | Giá trị hợp lệ | Mô tả |
 |---|---|---|---|---|
-| `quality` | string | `"standard"` | `draft`, `standard`, `high` | draft: 540p, nhanh để xem thử · standard: đúng khung bản dựng · high: chất lượng cao, chậm hơn |
+| `quality` | string | `"standard"` | `draft` — Nháp — 540p, nhanh để xem thử<br>`standard` — Chuẩn — đúng khung bản dựng<br>`high` — Cao — đẹp nhất, chậm hơn | Chất lượng video |
 
 ### Output
 | Tên | Format | Luôn có | Mô tả |
@@ -66,8 +67,8 @@ await ws.tools.run("compose_render", { inputs: { /* asset */ }, params: {"qualit
 ## 4. Tích hợp và nối tool
 
 <!-- AUTO:chain:start -->
-- **Tool nối được vào trước (cấp input):** `media_probe`, `video_demux`
-- **Tool nối được ra sau (nhận output):** `media_probe`, `video_demux`
+- **Tool nối được vào trước (cấp input):** `audio_stems6_htdemucs`, `audio_stems6_sw`, `audio_vocals_leap_xe`, `compose_auto_captions`, `compose_auto_dub`, `compose_bind`, `compose_edit`, `compose_film_subtitles`, `compose_karaoke`, `compose_karaoke_video`, `compose_template`, `compose_voiceover_captions`, `lyrics_align`, `media_apply`, `media_probe`, `music_beat_track`, `speech_dub`, `speech_synthesize`, `speech_transcribe`, `speech_voice_add`, `speech_zipformer_150m`, `speech_zipformer_30m`, `video_demux`, `video_info`
+- **Tool nối được ra sau (nhận output):** `audio_stems6_htdemucs`, `audio_stems6_sw`, `audio_vocals_leap_xe`, `compose_auto_captions`, `compose_auto_dub`, `compose_bind`, `compose_film_subtitles`, `compose_karaoke`, `compose_karaoke_video`, `compose_template`, `compose_voiceover_captions`, `lyrics_align`, `media_apply`, `media_probe`, `music_beat_track`, `speech_dub`, `speech_transcribe`, `speech_voice_add`, `speech_zipformer_150m`, `speech_zipformer_30m`, `video_demux`, `video_info`
 <!-- AUTO:chain:end -->
 
 **Lưu ý khi tích hợp:**

@@ -28,6 +28,7 @@ tools/audio/separate_stems/
 - `category` là một trong các khu vực đang có: `media`, `video`, `audio`, `music`, `speech`, `lyrics`, `karaoke`, `compose`. Nếu tool thuộc khu vực hoàn toàn mới thì tạo category mới cùng cấp. Không tạo sẵn category rỗng.
 - `name` viết thường, dùng `_`, dạng động từ + đối tượng khi được (`separate_stems`, `burn_subtitle`).
 - **id = `<category>_<name>`**, ví dụ `audio_separate_stems`. Id phải khớp đường dẫn; `validate` kiểm tra điều này.
+- **`sources`** (bắt buộc với tool có code): repo model / thư viện / engine mà tool dựa vào, dạng `[{ name = "chủ/repo", url = "…" }]` — hiện cạnh tên tool ở danh sách, bảng chọn tool, trang chạy tool, tài liệu. Chuỗi không khai: core tự gom từ các bước.
 
 ---
 
@@ -65,6 +66,20 @@ url         = "https://…"
 sha256      = "…"
 size_mb     = 80
 license     = "MIT"            # bắt buộc; một số model chỉ cho dùng phi thương mại
+# file        = "htdemucs.th"  # tên file lưu (mặc định lấy từ url) — ctx.models.get() trả đường dẫn FILE
+# source      = "https://…"    # trang gốc của model (ghi vào README)
+
+# Model nhiều file (ví dụ CTranslate2): mỗi file một url + sha256; ctx.models.get() trả đường dẫn THƯ MỤC
+# [[models]]
+# id    = "whisper_base"
+# files = [ { path = "model.bin", url = "https://…/<commit>/model.bin", sha256 = "…" }, … ]
+#
+# Core tải lần đầu vào <data>/models/<id>/, kiểm sha256 TỪNG file (sai → xóa, báo lỗi), báo tiến độ tải lên job;
+# hai job cùng cần một model thì job sau chờ. Test / `mediatool-dev run` dùng cùng thư mục (mediatool_sdk.models).
+# Ghim url theo commit, không theo nhánh. File có thể nằm trong thư mục con (path = "onnx/x.onnx"), không được có "..".
+#
+# Nhiều tool dùng CHUNG một bộ model: khai báo một lần ở tools/_models/<nhóm>.toml (cùng dạng [[models]]) rồi đặt
+# models_from = ["<nhóm>"] ở ĐẦU manifest (khóa cấp gốc, trước bảng [tool]). Ví dụ: tools/_models/vieneu.toml.
 
 [mcp]
 expose      = true
@@ -158,7 +173,7 @@ class SeparateStems(BaseTool[Inputs, Params, Outputs]):
 |---|---|
 | `ctx.workdir` | Thư mục riêng của job, **nơi duy nhất** được ghi file |
 | `ctx.progress(fraction, message)` | Báo tiến độ từ 0 đến 1 |
-| `ctx.log.info/warning/error` | Ghi log của job |
+| `ctx.log.info/warning/error` | Ghi log của job; `warning` còn được gộp vào `warnings` của kết quả (người dùng thấy cả lúc chạy lẫn ở kết quả) |
 | `ctx.check_cancelled()` | Gọi trong vòng lặp dài để người dùng hủy được job |
 | `ctx.models.get(id)` | Lấy đường dẫn model đã khai báo trong manifest |
 | `ctx.require_binary(name)` | Kiểm tra binary hệ thống có sẵn không |
@@ -180,6 +195,10 @@ Mọi trường input/output là file hay dữ liệu có cấu trúc **phải**
 | `BeatGrid`, `SceneList`, `TimeRanges` | `beat_grid`, `scene_list`, `time_ranges` |
 | `FontFile`, `LutFile`, `JsonData` | `font`, `lut`, `json` |
 | `Composition`, `TextStyle` | `composition`, `text_style`. Đọc/ghi/kiểm tra bằng `mediatool_sdk.compose`, không tự parse JSON |
+| `VoiceProfile` | `voice`: hồ sơ giọng đọc (clip mẫu + đặc trưng giọng). Tạo bằng `speech_voice_add`, dùng qua `mediatool_sdk.speech` |
+| `TextFile` | `text`: văn bản thuần .txt / .md (lời đọc, kịch bản, bản chép lời); đọc bằng `.read()` |
+
+Quy tắc nối: input `json` nhận mọi loại dữ liệu JSON; input loại JSON cụ thể (`voice`, `composition`, `transcript`…) nhận thêm file `.json` chưa gắn loại (người dùng tự tải lên) — tool phải tự kiểm nội dung và báo `InputError` rõ ràng nếu sai.
 
 Trường số hoặc chuỗi thường (âm lượng, tên preset…) không cần `format`. Cần kiểu mới thì mở PR riêng vào `sdk/`, **không tự định nghĩa trong tool**.
 
@@ -208,6 +227,44 @@ tools/lyrics/align/
 **Không import `internal/` của tool khác.** Khi hai tool cần chung một đoạn code, hãy đề xuất đưa nó vào SDK (ví dụ `mediatool_sdk.vi` cho xử lý tiếng Việt, `mediatool_sdk.ffmpeg` cho ffmpeg).
 
 ---
+
+## 3b. Chuỗi đã lưu: tool không có code
+
+Một chuỗi các tool có sẵn cũng là **một tool**: tự xuất hiện ở trang Công cụ (nhãn *Chuỗi*), Tool Runner, màn Quy trình tự động, API và MCP, và **lồng được vào chuỗi khác**. Thư mục giống tool thường, nhưng thay `tool.py` bằng `chain.json`:
+
+```
+tools/compose/film_subtitles/
+├── manifest.toml      # entry = "chain:chain.json"
+├── chain.json         # input · tham số · các bước · output
+├── samples/ README.md CHANGELOG.md
+```
+
+```json
+{
+  "inputs":  [{ "name": "video", "format": "video", "description": "Video cần làm" }],
+  "params":  { "type": "object", "properties": { "look": { "type": "string", "default": "teal_orange", "enum": ["teal_orange", "noir"],
+               "x-labels": { "teal_orange": "Cam – xanh", "noir": "Đen trắng" }, "description": "Tông màu" } } },
+  "steps": [
+    { "id": "look", "title": "Áp tông màu", "tool": "media_apply", "inputs": { "video": "$input.video" }, "params": { "effect": "$param.look" } },
+    { "id": "subs", "title": "Chèn phụ đề", "tool": "compose_bind", "inputs": { "video": "$look.video", "subtitle": "$input.subtitle" } }
+  ],
+  "outputs": { "video": { "from": "$subs.video", "format": "video", "description": "Video kết quả" } }
+}
+```
+
+- Input của bước: `"$input.<tên>"` (input của chuỗi) hoặc `"$<id bước>.<output>"` (output bước trước); mảng nếu input nhận nhiều file.
+- Tham số của bước: hằng số, hoặc `"$param.<tên>"` lấy từ tham số của chuỗi (JSON Schema, có thể kèm `x-labels`). Tham số chuỗi không truyền thì lấy `default` trong schema.
+- Tham số chuỗi trùng với tham số của một tool: khai báo `{"$from": "<tool_id>.<tham số>"}` — lấy nguyên schema (danh sách, nhãn, giới hạn) của tool, chỉ ghi đè khóa đặt cạnh (`default`, `description`). Không chép lại danh sách giọng / hiệu ứng.
+- Input của chuỗi có thể tùy chọn: `"required": false` — bước nhận `$input.<tên>` sẽ không có input đó khi người dùng bỏ trống.
+- Core chạy từng bước thành **job con** qua đúng bộ lập lịch (RAM, heavy, hủy, tiến độ). Chuỗi dùng được khi mọi tool trong các bước dùng được.
+- `mediatool-dev validate` kiểm tra mọi tool/tham chiếu trong chuỗi; `mediatool-dev docs` sinh thêm bảng các bước (khối `AUTO:steps`). Chuỗi không cần `tests/` (core chạy); kiểm thử bằng `[[examples]]` trên sandbox.
+- Người dùng lưu chuỗi từ màn Quy trình tự động (đặt tên → **Lưu**) sẽ nằm ở `<data>/chains/user/<tên>/` — cùng định dạng (`manifest.toml` + `chain.json`, thêm `graph.json` là bố cục trên trình nối). Chuỗi của người dùng sửa / đổi tên / xóa được; chuỗi dựng sẵn chỉ mở ra để sao chép. API: `GET/PUT/DELETE /v1/chains/{id}`, `POST /v1/chains` (core kiểm mọi tool trong các bước có mặt và dùng được, không tự gọi chính nó, có ít nhất một output). Yêu thích (đánh sao tool / chuỗi): `GET /v1/favorites`, `PUT/DELETE /v1/favorites/{id}` — lưu trong `<data>/prefs.json`; `GET /v1/tools` trả thêm `favorite` (thứ tự đánh sao) và `editable`.
+
+**Thông số chung khi tool dựng hình:** dùng `mediatool_sdk.compose` (đọc thư viện, đo media, dựng composition, gọi engine) và `mediatool_sdk.timed` (đọc SRT/VTT/LRC/JSON thành dữ liệu thời gian chung), không tự gọi FFmpeg/engine. Tham số chọn từ danh sách nên có nhãn tiếng Việt: `json_schema_extra={"enum": [...], "x-labels": {...}}`.
+
+**Module dùng chung khác của SDK** (không tự viết lại trong tool): `mediatool_sdk.speech` (giọng đọc VieNeu: nạp model, giọng, ghép câu, đổi tốc độ, chuẩn hóa độ to, đọc âm thanh), `mediatool_sdk.align` (căn ép chữ vào âm thanh bằng model CTC), `mediatool_sdk.asr` (chép lời: cắt đoạn theo tiếng nói, chạy ZipFormer bằng sherpa-onnx, tách câu, ghi output chung của mọi tool chép lời), `mediatool_sdk.vi` (tiếng Việt: chuẩn hóa Unicode, `spoken_words` đổi chữ viết → cách đọc), `mediatool_sdk.timed` (dữ liệu thời gian: đọc / ghi SRT, LRC, tách câu, cắt dòng), `mediatool_sdk.stems` (tách nguồn âm: giải mã ra PCM memmap, chạy model theo đoạn chồng nhau với bộ đệm một đoạn, ghi dần WAV từng phần, đổi định dạng xuất), `mediatool_sdk.bs_roformer` (model BS-RoFormer chạy bằng numpy + onnxruntime, không cần PyTorch), `mediatool_sdk.ckpt` (đọc an toàn checkpoint PyTorch `.ckpt` / `.pt` thành mảng numpy — chỉ cho phép tensor, không chạy mã trong file), `mediatool_sdk.device` (chạy model ONNX bằng GPU NVIDIA nếu được: `ort_session(model, opts, ctx, gpu=ctx.device.startswith("cuda"))` — không có GPU thì tự về CPU và cảnh báo).
+
+**GPU — một đường duy nhất: CUDA qua onnxruntime-gpu.** Một lựa chọn cho cả máy chủ, không phải tham số của từng tool: biến `MEDIATOOL_DEVICE` của core (`cpu` mặc định, `auto` = có GPU NVIDIA thì dùng, `cuda`). Bản GPU (`docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build`, driver NVIDIA hỗ trợ CUDA 12) đặt sẵn `auto`. Core truyền `ctx.device = "cuda"` cho tool khai `runtime.gpu = "optional"` (tool `none` luôn nhận `cpu`); tool tạo session bằng `mediatool_sdk.device.ort_session(..., gpu=ctx.device.startswith("cuda"))`. Tool KHÔNG được lỗi khi thiếu GPU.
 
 ## 4. Kiểm thử: không phải viết UI
 

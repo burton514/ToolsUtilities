@@ -1,0 +1,46 @@
+{
+  "inputs": [
+    { "name": "song", "format": "audio", "description": "Bài hát (có giọng hát)" },
+    { "name": "lyrics", "format": "text", "description": "Lời bài hát (.txt), mỗi dòng một câu hát" },
+    { "name": "video", "format": "video", "required": false, "description": "Video nền (tùy chọn); bỏ trống thì dùng nền màu" }
+  ],
+  "params": {
+    "type": "object",
+    "properties": {
+      "engine": { "$from": "lyrics_align.engine" },
+      "offset_ms": { "$from": "lyrics_align.offset_ms" },
+      "style": { "$from": "compose_bind.style", "default": "karaoke" },
+      "position": { "$from": "compose_bind.position" },
+      "color": { "$from": "compose_bind.color" },
+      "highlight": { "$from": "compose_bind.highlight" },
+      "ratio": { "$from": "compose_bind.ratio" },
+      "background": { "$from": "compose_bind.background" },
+      "video_volume": { "$from": "compose_bind.video_volume", "default": 0, "description": "Âm lượng tiếng gốc của video nền (%); 0 = chỉ nghe bài hát" },
+      "quality": { "$from": "compose_bind.quality" }
+    }
+  },
+  "steps": [
+    {
+      "id": "align",
+      "title": "Căn lời theo nhạc",
+      "tool": "lyrics_align",
+      "inputs": { "media": "$input.song", "lyrics": "$input.lyrics" },
+      "params": { "engine": "$param.engine", "offset_ms": "$param.offset_ms" }
+    },
+    {
+      "id": "karaoke",
+      "title": "Dựng video karaoke",
+      "tool": "compose_bind",
+      "inputs": { "video": "$input.video", "audio": "$input.song", "data": "$align.lyrics" },
+      "params": {
+        "style": "$param.style", "position": "$param.position", "color": "$param.color", "highlight": "$param.highlight",
+        "ratio": "$param.ratio", "background": "$param.background", "video_volume": "$param.video_volume", "quality": "$param.quality"
+      }
+    }
+  ],
+  "outputs": {
+    "video": { "from": "$karaoke.video", "format": "video", "description": "Video karaoke: chữ đổi màu đúng lúc hát từng chữ" },
+    "lrc": { "from": "$align.lrc", "format": "subtitle", "description": "Lời karaoke .lrc thời gian từng chữ — dùng lại cho máy karaoke / trình phát nhạc" },
+    "composition": { "from": "$karaoke.composition", "format": "composition", "description": "Bản dựng — chỉnh kiểu chữ, hiệu ứng bằng compose_edit" }
+  }
+}

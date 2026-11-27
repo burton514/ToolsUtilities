@@ -1,0 +1,69 @@
+[tool]
+id          = "lyrics_align"
+name        = "Căn lời bài hát theo nhạc"
+version     = "0.1.0"
+sdk         = ">=0.1,<0.2"
+entry       = "tool:LyricsAlignTool"
+summary     = "Đưa vào bài hát và lời, nhận lại thời gian bắt đầu / kết thúc của TỪNG CHỮ (file .lrc karaoke + JSON) để làm karaoke, lời chạy theo nhạc. Tiếng Việt, chạy trên máy."
+tags        = ["lyrics", "alignment", "karaoke", "song", "vietnamese", "forced-alignment"]
+owners      = ["mediatool-core"]
+license     = "MIT"
+status      = "beta"
+# Nguồn hiện cạnh tên tool (repo model / thư viện / engine)
+sources     = [
+  { name = "nguyenvulebinh/lyric-alignment", url = "https://huggingface.co/nguyenvulebinh/lyric-alignment" },
+  { name = "not-tanh/wav2vec2-large-xlsr-53-vietnamese", url = "https://huggingface.co/not-tanh/wav2vec2-large-xlsr-53-vietnamese" },
+]
+
+[runtime]
+profile     = "base"
+ram_mb      = 2200
+gpu         = "none"
+heavy       = true
+timeout_s   = 3600
+
+[dependencies]
+binaries    = ["ffmpeg"]
+
+# Hai model cùng kiến trúc wav2vec2 + CTC, chạy ONNX Runtime trên CPU; chọn theo bảng ENGINES trong tool.py.
+
+# "song" — model căn lời bài hát của nguyenvulebinh/lyric-alignment (Zalo AI 2022): wav2vec2-large học trên ~1.500 giờ
+# nhạc Việt. LICENSE CC-BY-NC-4.0: CHỈ DÙNG PHI THƯƠNG MẠI. Bản ONNX int8 (trọng số gốc commit 2d0b61d, chuẩn hóa đầu vào +
+# log-softmax nằm sẵn trong đồ thị).
+[[models]]
+id          = "lyric_align_song"
+size_mb     = 344
+license     = "CC-BY-NC-4.0"
+source      = "https://huggingface.co/nguyenvulebinh/lyric-alignment"
+files = [
+  { path = "model.int8.onnx", url = "https://huggingface.co/phuongnse/lyric-alignment-onnx/resolve/ec46b2179bfbe521e22c36d0c08bd3993c63fe71/model.int8.onnx", sha256 = "0071840476677e53e1cd9881246a3d2890bad812096282ebe1ac1bd676c23099" },
+  { path = "vocab.json",      url = "https://huggingface.co/phuongnse/lyric-alignment-onnx/resolve/ec46b2179bfbe521e22c36d0c08bd3993c63fe71/vocab.json",      sha256 = "4339e2cb5c97554f089fe317120e794efce3f7626ad205fb496d34bddd2c6ae7" },
+]
+
+# "general" — phương án thay thế khi cần dùng thương mại (theo docs/ENGINES.md): wav2vec2-large-xlsr-53 tiếng Việt
+# (not-tanh, Apache-2.0; nền XLSR-53 của Meta, Apache-2.0), bản ONNX int8 xuất cho căn lời CTC. Học trên lời nói
+# (Common Voice + VIVOS), kém hơn "song" với giọng hát.
+[[models]]
+id          = "lyric_align_general"
+size_mb     = 339
+license     = "Apache-2.0"
+source      = "https://huggingface.co/not-tanh/wav2vec2-large-xlsr-53-vietnamese"
+files = [
+  { path = "model.int8.onnx",          url = "https://huggingface.co/XDcobra/wav2vec2-large-xlsr-53-vietnamese-ONNX/resolve/3813586cd6ea90f063d0f06a699dc42121d62fe0/onnx/model_int8.onnx",          sha256 = "6f2bf92dbd9459f554c91820e35614f199c2805d1dd39fa6c4f099b443d121c4" },
+  { path = "vocab.json",               url = "https://huggingface.co/XDcobra/wav2vec2-large-xlsr-53-vietnamese-ONNX/resolve/3813586cd6ea90f063d0f06a699dc42121d62fe0/vocab.json",               sha256 = "1d349e1f0fb1ad0bd1c9f6bdc3a79eb4301e75736f792c6c0c5d0218edc837d8" },
+  { path = "preprocessor_config.json", url = "https://huggingface.co/XDcobra/wav2vec2-large-xlsr-53-vietnamese-ONNX/resolve/3813586cd6ea90f063d0f06a699dc42121d62fe0/preprocessor_config.json", sha256 = "60ca5a31e13f69ee2fbf147504c8676db5f6398fd7a6b12294341dff838edfcf" },
+]
+
+[mcp]
+expose      = true
+hint        = "Dùng khi người dùng có bài hát và lời (chưa có thời gian, hoặc .lrc lệch) muốn làm karaoke / lời chạy theo nhạc. Output 'lrc' (.lrc thời gian từng chữ) và 'lyrics' (JSON) nối thẳng vào compose_bind kiểu karaoke. Model mặc định 'song' chỉ cho dùng phi thương mại; cần thương mại thì engine = general."
+
+[[examples]]
+title       = "Căn lời (file .txt) cho đoạn hát mẫu có nhạc nền"
+inputs      = { media = "samples/vocal_mix.mp3", lyrics = "samples/lyrics.txt" }
+params      = {}
+
+[[examples]]
+title       = "Dùng model thương mại được (general)"
+inputs      = { media = "samples/vocal_mix.mp3", lyrics = "samples/lyrics.txt" }
+params      = { engine = "general" }

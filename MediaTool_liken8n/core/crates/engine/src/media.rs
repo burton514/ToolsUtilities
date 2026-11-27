@@ -6,9 +6,16 @@ use ffmpeg_the_third as ff;
 use ff::format::Pixel;
 use ff::media::Type as MediaType;
 use ff::software::scaling;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Once;
 
 static INIT: Once = Once::new();
+/// Số luồng giải mã cho mỗi video (0 = FFmpeg tự chọn theo số lõi). Xuất song song đặt nhỏ lại để không tranh lõi.
+static DECODE_THREADS: AtomicUsize = AtomicUsize::new(0);
+
+pub fn set_decode_threads(n: usize) {
+    DECODE_THREADS.store(n, Ordering::Relaxed);
+}
 
 pub fn init() {
     INIT.call_once(|| {
@@ -36,7 +43,8 @@ pub struct VideoSource {
     pub width: u32,
     pub height: u32,
     pub duration: f64,
-    last: Option<RgbaFrame>,
+    last: Option<(skia_safe::Image, f64)>,
+    rgba: ff::frame::Video,
     /// thời điểm (giây) của khung vừa giải mã, để biết có cần seek không
     cursor: f64,
     eof: bool,
@@ -56,12 +64,14 @@ impl VideoSource {
         let rate = stream.avg_frame_rate();
         let fps = if rate.denominator() > 0 && rate.numerator() > 0 { rate.numerator() as f64 / rate.denominator() as f64 } else { 25.0 };
         let duration = if input.duration() > 0 { input.duration() as f64 / 1_000_000.0 } else { 0.0 };
-        let ctx = ff::codec::context::Context::from_parameters(stream.parameters())?;
+        let mut ctx = ff::codec::context::Context::from_parameters(stream.parameters())?;
+        // giải mã đa luồng (mặc định libavcodec chỉ dùng 1 luồng khi gọi qua API)
+        ctx.set_threading(ff::threading::Config { kind: ff::threading::Type::Frame, count: DECODE_THREADS.load(Ordering::Relaxed), ..Default::default() });
         let decoder = ctx.decoder().video()?;
         let (width, height) = (decoder.width(), decoder.height());
         Ok(Self {
             input, stream_index, decoder, scaler: None, time_base, frame_dur: 1.0 / fps,
-            width, height, duration, last: None, cursor: f64::NEG_INFINITY, eof: false,
+            width, height, duration, last: None, rgba: ff::frame::Video::empty(), cursor: f64::NEG_INFINITY, eof: false,
         })
     }
 
@@ -75,12 +85,12 @@ impl VideoSource {
     }
 
     /// Khung tại thời điểm `t` (giây trong file nguồn), thu về tối đa `max_w`×`max_h` (giữ tỉ lệ).
-    pub fn frame_at(&mut self, t: f64, max_w: u32, max_h: u32) -> Result<&RgbaFrame> {
+    pub fn frame_at(&mut self, t: f64, max_w: u32, max_h: u32) -> Result<skia_safe::Image> {
         let t = t.clamp(0.0, (self.duration - self.frame_dur).max(0.0));
         let (ow, oh) = fit_within(self.width, self.height, max_w, max_h);
-        if let Some(l) = &self.last {
-            if l.width == ow && l.height == oh && t >= l.time - 1e-6 && t < l.time + self.frame_dur - 1e-6 {
-                return Ok(self.last.as_ref().unwrap());
+        if let Some((img, time)) = &self.last {
+            if img.width() == ow as i32 && img.height() == oh as i32 && t >= time - 1e-6 && t < time + self.frame_dur - 1e-6 {
+                return Ok(img.clone());
             }
         }
         // nhảy lùi hoặc nhảy xa → seek; còn lại giải mã tiếp
@@ -120,8 +130,10 @@ impl VideoSource {
                 self.eof = true;
             }
         }
-        if found.is_none() && self.last.is_some() {
-            return Ok(self.last.as_ref().unwrap()); // hết file: giữ khung cuối
+        if found.is_none() {
+            if let Some((img, _)) = &self.last {
+                return Ok(img.clone()); // hết file: giữ khung cuối
+            }
         }
         let pts = found.ok_or_else(|| anyhow!("Không giải mã được khung tại {t:.2}s"))?;
 
@@ -131,12 +143,14 @@ impl VideoSource {
             let sc = scaling::Context::get(decoded.format(), decoded.width(), decoded.height(), Pixel::RGBA, ow, oh, scaling::Flags::BILINEAR)?;
             self.scaler = Some((ow, oh, sc));
         }
-        let mut rgba = ff::frame::Video::empty();
-        self.scaler.as_mut().unwrap().2.run(&decoded, &mut rgba)?;
-        let stride = rgba.stride(0);
-        let data = rgba.data(0)[..stride * oh as usize].to_vec();
-        self.last = Some(RgbaFrame { width: ow, height: oh, stride, data, time: pts });
-        Ok(self.last.as_ref().unwrap())
+        // khung đích dùng lại giữa các lần (khỏi cấp phát), chép đúng một lần sang ảnh Skia
+        self.scaler.as_mut().unwrap().2.run(&decoded, &mut self.rgba)?;
+        let stride = self.rgba.stride(0);
+        let info = skia_safe::ImageInfo::new((ow as i32, oh as i32), skia_safe::ColorType::RGBA8888, skia_safe::AlphaType::Unpremul, None);
+        let img = skia_safe::images::raster_from_data(&info, skia_safe::Data::new_copy(&self.rgba.data(0)[..stride * oh as usize]), stride)
+            .ok_or_else(|| anyhow!("Không tạo được ảnh từ khung"))?;
+        self.last = Some((img.clone(), pts));
+        Ok(img)
     }
 }
 
@@ -153,7 +167,7 @@ pub fn filmstrip(path: &str, count: u32, height: u32) -> Result<Vec<u8>> {
 /// Như `filmstrip` nhưng chỉ lấy khung trong đoạn [from, to) giây của file — timeline zoom sâu tải từng đoạn đang thấy.
 /// Khung thứ i lấy tại from + (to-from)·(i+0.5)/count.
 pub fn filmstrip_range(path: &str, count: u32, height: u32, range: Option<(f64, f64)>) -> Result<Vec<u8>> {
-    use skia_safe::{surfaces, AlphaType, ColorType, Data, EncodedImageFormat, ImageInfo, Paint, Rect};
+    use skia_safe::{surfaces, EncodedImageFormat, Paint, Rect};
     let mut v = VideoSource::open(path)?;
     let count = count.clamp(1, 60);
     let th = height.clamp(16, 360);
@@ -167,11 +181,8 @@ pub fn filmstrip_range(path: &str, count: u32, height: u32, range: Option<(f64, 
     let span = (to - from).max(1e-3);
     for i in 0..count {
         let t = (from + span * (i as f64 + 0.5) / count as f64).min((dur - 0.01).max(0.0));
-        let f = v.frame_at(t, tw, th)?;
-        let info = ImageInfo::new((f.width as i32, f.height as i32), ColorType::RGBA8888, AlphaType::Unpremul, None);
-        if let Some(img) = skia_safe::images::raster_from_data(&info, Data::new_copy(&f.data), f.stride) {
-            surface.canvas().draw_image_rect(&img, None, Rect::from_xywh((i * tw) as f32, 0.0, tw as f32, th as f32), &Paint::default());
-        }
+        let img = v.frame_at(t, tw, th)?;
+        surface.canvas().draw_image_rect(&img, None, Rect::from_xywh((i * tw) as f32, 0.0, tw as f32, th as f32), &Paint::default());
     }
     #[allow(deprecated)]
     let data = surface.image_snapshot().encode_to_data_with_quality(EncodedImageFormat::JPEG, 82).ok_or_else(|| anyhow!("Không mã hóa JPEG"))?;

@@ -1,0 +1,188 @@
+{
+  "id": "lower_third",
+  "name": "Dải tên (lower third)",
+  "description": "Dải màu trượt vào góc dưới trái kèm tên và chức danh — đặt lên video phỏng vấn, giới thiệu nhân vật.",
+  "output": "video",
+  "duration": 5,
+  "slots": {
+    "title": {
+      "label": "Tên",
+      "default": "Nguyễn Văn A"
+    },
+    "subtitle": {
+      "label": "Chức danh",
+      "default": "Đạo diễn"
+    },
+    "image": {
+      "label": "Ảnh nền",
+      "kind": "image"
+    },
+    "video": {
+      "label": "Video nền",
+      "kind": "video"
+    },
+    "accent": {
+      "label": "Màu nhấn",
+      "default": "#FFC83D"
+    }
+  },
+  "composition": {
+    "version": 1,
+    "canvas": {
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "background": "#000000"
+    },
+    "duration": 5,
+    "layers": [
+      {
+        "id": "bg_video",
+        "name": "Nền",
+        "type": "video",
+        "source": "{{video}}",
+        "fit": "cover",
+        "start": 0,
+        "duration": 5,
+        "_requires": "video",
+        "trim_start": 0,
+        "volume": 100,
+        "muted": false,
+        "effects": [
+          {
+            "type": "dim",
+            "amount": 35
+          }
+        ]
+      },
+      {
+        "id": "bg_image",
+        "name": "Nền",
+        "type": "image",
+        "source": "{{image}}",
+        "fit": "cover",
+        "start": 0,
+        "duration": 5,
+        "_requires": "image",
+        "effects": [
+          {
+            "type": "dim",
+            "amount": 35
+          }
+        ]
+      },
+      {
+        "id": "plate",
+        "name": "plate",
+        "type": "shape",
+        "shape": "rect",
+        "x": 0.27,
+        "y": 0.8,
+        "w": 0.42,
+        "h": 0.13,
+        "fill": "#101018E6",
+        "corner_radius": 10,
+        "start": 0.3,
+        "duration": 4.4,
+        "animations": [
+          {
+            "preset": "slide_right",
+            "kind": "in",
+            "duration": 0.5
+          },
+          {
+            "preset": "slide_left",
+            "kind": "out",
+            "duration": 0.4
+          }
+        ]
+      },
+      {
+        "id": "accent_bar",
+        "name": "accent_bar",
+        "type": "shape",
+        "shape": "rect",
+        "x": 0.065,
+        "y": 0.8,
+        "w": 0.008,
+        "h": 0.13,
+        "fill": "{{accent}}",
+        "corner_radius": 0,
+        "start": 0.45,
+        "duration": 4.25,
+        "animations": [
+          {
+            "preset": "wipe_down",
+            "kind": "in",
+            "duration": 0.35
+          },
+          {
+            "preset": "fade",
+            "kind": "out",
+            "duration": 0.3
+          }
+        ]
+      },
+      {
+        "id": "title",
+        "name": "title",
+        "type": "text",
+        "text": "{{title}}",
+        "x": 0.29,
+        "y": 0.775,
+        "start": 0.6,
+        "duration": 4.1,
+        "style": {
+          "font": "Noto Sans",
+          "weight": 900,
+          "size": 54,
+          "fill": "#FFFFFF",
+          "align": "left",
+          "max_width": 0.38
+        },
+        "animations": [
+          {
+            "preset": "fade_right",
+            "kind": "in",
+            "duration": 0.4
+          },
+          {
+            "preset": "fade",
+            "kind": "out",
+            "duration": 0.3
+          }
+        ]
+      },
+      {
+        "id": "subtitle",
+        "name": "subtitle",
+        "type": "text",
+        "text": "{{subtitle}}",
+        "x": 0.29,
+        "y": 0.835,
+        "start": 0.75,
+        "duration": 3.95,
+        "style": {
+          "font": "Noto Sans",
+          "weight": 500,
+          "size": 34,
+          "fill": "{{accent}}",
+          "align": "left",
+          "max_width": 0.38
+        },
+        "animations": [
+          {
+            "preset": "fade_right",
+            "kind": "in",
+            "duration": 0.4
+          },
+          {
+            "preset": "fade",
+            "kind": "out",
+            "duration": 0.3
+          }
+        ]
+      }
+    ]
+  }
+}

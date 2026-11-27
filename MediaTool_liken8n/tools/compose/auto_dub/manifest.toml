@@ -1,0 +1,33 @@
+# Chuỗi đã lưu: core đọc chain.json và chạy từng bước thành job con. Không có code riêng.
+[tool]
+id          = "compose_auto_dub"
+name        = "Lồng tiếng tự động"
+version     = "0.3.0"
+sdk         = ">=0.1,<0.2"
+entry       = "chain:chain.json"
+summary     = "Một bước thay giọng cho video: tự nghe lời gốc (tiếng Việt hoặc Anh), đọc lại bằng giọng khác (có sẵn hoặc giọng riêng) đúng mốc thời gian, giữ nhạc nền và chèn phụ đề."
+tags        = ["chain", "dub", "tts", "speech", "subtitle"]
+owners      = ["mediatool-core"]
+license     = "MIT"
+status      = "beta"
+
+[runtime]
+profile     = "base"
+ram_mb      = 50
+gpu         = "none"
+heavy       = false
+timeout_s   = 14400
+
+[mcp]
+expose      = true
+hint        = "Dùng khi người dùng muốn đổi giọng nói trong video (ví dụ thay bằng giọng đọc chuyên nghiệp hoặc giọng riêng đã lưu). Không dịch: lời giữ nguyên, chỉ đổi giọng."
+
+[[examples]]
+title       = "Đổi giọng video nói tiếng Anh mẫu (giọng VieNeu đọc được tiếng Anh)"
+inputs      = { video = "samples/talk.mp4" }
+params      = { language = "en", listen_model = "base", voice = "Ngọc Huyền", quality = "draft" }
+
+[[examples]]
+title       = "Đổi giọng video nói tiếng Việt"
+inputs      = { video = "samples/talk_vi.mp4" }
+params      = { language = "vi", listen_model = "base", voice = "Thùy Dung", quality = "draft" }

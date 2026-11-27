@@ -1,0 +1,54 @@
+[tool]
+id          = "speech_zipformer_30m"
+name        = "Chép lời tiếng Việt — ZipFormer-30M (nhanh, nhẹ)"
+version     = "0.1.0"
+sdk         = ">=0.1,<0.2"
+entry       = "tool:ZipFormer30MTool"
+summary     = "Chép lời nói TIẾNG VIỆT thành phụ đề, rất nhanh trên CPU (máy yếu / VPS vẫn chạy tốt). Model ZipFormer-30M của hynt (repo hynt/Zipformer-30M-RNNT-6000h, giải nhất VLSP 2025). Chỉ dùng phi thương mại."
+tags        = ["speech", "transcribe", "asr", "vietnamese", "zipformer", "fast"]
+owners      = ["mediatool-core"]
+license     = "MIT"
+status      = "beta"
+# Nguồn hiện cạnh tên tool (repo model / thư viện / engine)
+sources     = [
+  { name = "hynt/Zipformer-30M-RNNT-6000h", url = "https://huggingface.co/hynt/Zipformer-30M-RNNT-6000h" },
+]
+
+[runtime]
+profile     = "base"
+ram_mb      = 900
+gpu         = "none"
+heavy       = false
+timeout_s   = 7200
+
+[dependencies]
+binaries    = ["ffmpeg"]
+
+# Model của hynt (giải nhất VLSP 2025), ONNX int8 + bảng token (file config.json của repo chính là tokens.txt).
+# LICENSE CC-BY-NC-ND-4.0: CHỈ DÙNG PHI THƯƠNG MẠI, không phân phối bản sửa đổi (tool tải nguyên file gốc, không sửa).
+# Phương án thay thế khi thương mại hóa: speech_transcribe (PhoWhisper, BSD-3) — xem docs/ENGINES.md.
+[[models]]
+id          = "zipformer_30m_vi"
+size_mb     = 32
+license     = "CC-BY-NC-ND-4.0"
+source      = "https://huggingface.co/hynt/Zipformer-30M-RNNT-6000h"
+files = [
+  { path = "encoder.int8.onnx", url = "https://huggingface.co/hynt/Zipformer-30M-RNNT-6000h/resolve/ad6f873b5f5b6ed083821253a88d81afed2505c4/encoder-epoch-20-avg-10.int8.onnx", sha256 = "8ef5286dd427eb108055c2ddc1982aa31e544706072d5ea228729292dacade68" },
+  { path = "decoder.onnx"     , url = "https://huggingface.co/hynt/Zipformer-30M-RNNT-6000h/resolve/ad6f873b5f5b6ed083821253a88d81afed2505c4/decoder-epoch-20-avg-10.onnx", sha256 = "cf2aa385b82c9d5d40cd29c3188af52d0249b3b78f0d4b7eb84ad502d50c7e7f" },
+  { path = "joiner.int8.onnx" , url = "https://huggingface.co/hynt/Zipformer-30M-RNNT-6000h/resolve/ad6f873b5f5b6ed083821253a88d81afed2505c4/joiner-epoch-20-avg-10.int8.onnx", sha256 = "7311d2e17b810ecea515d79c71cc4668af8759256a06fa01d27047772320c821" },
+  { path = "tokens.txt"       , url = "https://huggingface.co/hynt/Zipformer-30M-RNNT-6000h/resolve/ad6f873b5f5b6ed083821253a88d81afed2505c4/config.json", sha256 = "ca8171f8bbd516c050b627582f2125c8f5f1f6ed967ab41b0fa9aae2cf61b492" },
+]
+
+[mcp]
+expose      = true
+hint        = "Chép lời tiếng Việt NHANH, máy yếu. Lời ra chữ thường + viết hoa đầu câu, không dấu câu giữa câu. Cần chính xác hơn: speech_zipformer_150m; cần dùng thương mại: speech_transcribe."
+
+[[examples]]
+title       = "Chép lời đoạn nói tiếng Việt"
+inputs      = { media = "samples/speech_vi.mp3" }
+params      = {}
+
+[[examples]]
+title       = "Phụ đề dòng ngắn cho video dọc"
+inputs      = { media = "samples/talk_vi.mp4" }
+params      = { max_chars = 18 }

@@ -1,0 +1,170 @@
+{
+  "id": "thumbnail",
+  "name": "Ảnh thumbnail",
+  "description": "Ảnh bìa video: ảnh nền làm tối, tiêu đề cực to kiểu sticker viền trắng, nhãn màu nhấn góc trên.",
+  "output": "image",
+  "duration": 1,
+  "slots": {
+    "title": {
+      "label": "Tiêu đề",
+      "default": "TIÊU ĐỀ SIÊU HOT"
+    },
+    "subtitle": {
+      "label": "Nhãn góc",
+      "default": "MỚI"
+    },
+    "image": {
+      "label": "Ảnh nền",
+      "kind": "image"
+    },
+    "video": {
+      "label": "Video nền",
+      "kind": "video"
+    },
+    "accent": {
+      "label": "Màu nhấn",
+      "default": "#FFC83D"
+    }
+  },
+  "composition": {
+    "version": 1,
+    "canvas": {
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "background": "#101018"
+    },
+    "duration": 1,
+    "layers": [
+      {
+        "id": "bg",
+        "name": "bg",
+        "type": "shape",
+        "shape": "rect",
+        "x": 0.5,
+        "y": 0.5,
+        "w": 1,
+        "h": 1,
+        "fill": {
+          "type": "linear",
+          "stops": [
+            "#FF3D7F",
+            "#7C4DFF"
+          ],
+          "angle": 30
+        },
+        "corner_radius": 0,
+        "start": 0,
+        "duration": 1
+      },
+      {
+        "id": "bg_image",
+        "name": "Nền",
+        "type": "image",
+        "source": "{{image}}",
+        "fit": "cover",
+        "start": 0,
+        "duration": 1,
+        "_requires": "image",
+        "effects": [
+          {
+            "type": "dim",
+            "amount": 35
+          }
+        ]
+      },
+      {
+        "id": "shade",
+        "name": "shade",
+        "type": "shape",
+        "shape": "rect",
+        "x": 0.5,
+        "y": 0.75,
+        "w": 1,
+        "h": 0.5,
+        "fill": {
+          "type": "linear",
+          "stops": [
+            "#00000000",
+            "#000000CC"
+          ],
+          "angle": 90
+        },
+        "corner_radius": 0,
+        "start": 0,
+        "duration": 1
+      },
+      {
+        "id": "title",
+        "name": "title",
+        "type": "text",
+        "text": "{{title}}",
+        "x": 0.5,
+        "y": 0.72,
+        "start": 0,
+        "duration": 1,
+        "style": {
+          "font": "Noto Sans",
+          "weight": 900,
+          "size": 170,
+          "fill": "{{accent}}",
+          "align": "center",
+          "max_width": 0.92,
+          "case": "upper"
+        },
+        "strokes": [
+          {
+            "color": "#000000",
+            "width": 6
+          },
+          {
+            "color": "#FFFFFF",
+            "width": 16
+          }
+        ],
+        "shadows": [
+          {
+            "color": "#000000AA",
+            "x": 8,
+            "y": 12,
+            "blur": 10
+          }
+        ]
+      },
+      {
+        "id": "tag",
+        "name": "tag",
+        "type": "shape",
+        "shape": "rect",
+        "x": 0.12,
+        "y": 0.12,
+        "w": 0.16,
+        "h": 0.1,
+        "fill": "{{accent}}",
+        "corner_radius": 14,
+        "start": 0,
+        "duration": 1,
+        "rotation": -6
+      },
+      {
+        "id": "subtitle",
+        "name": "subtitle",
+        "type": "text",
+        "text": "{{subtitle}}",
+        "x": 0.12,
+        "y": 0.12,
+        "start": 0,
+        "duration": 1,
+        "style": {
+          "font": "Noto Sans",
+          "weight": 900,
+          "size": 56,
+          "fill": "#101018",
+          "align": "center",
+          "max_width": 0.15
+        },
+        "rotation": -6
+      }
+    ]
+  }
+}

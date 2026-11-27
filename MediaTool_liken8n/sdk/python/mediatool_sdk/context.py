@@ -15,6 +15,7 @@ Emit = Callable[[dict[str, Any]], None]
 class Log:
     def __init__(self, emit: Emit):
         self._emit = emit
+        self.warnings: list[str] = []   # cảnh báo cho người dùng — runner gộp vào `warnings` của kết quả job
 
     def _send(self, level: str, message: str) -> None:
         self._emit({"event": "log", "level": level, "message": str(message)})
@@ -23,6 +24,8 @@ class Log:
         self._send("info", message)
 
     def warning(self, message: str) -> None:
+        """Cảnh báo không làm job thất bại: ghi log ngay (người dùng thấy lúc đang chạy) VÀ đưa vào `warnings` của kết quả."""
+        self.warnings.append(str(message))
         self._send("warning", message)
 
     def error(self, message: str) -> None:

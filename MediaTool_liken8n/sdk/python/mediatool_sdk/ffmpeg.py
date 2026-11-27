@@ -93,3 +93,16 @@ def run(
     t.join(timeout=2)
     if code != 0:
         raise ToolError("FFMPEG_FAILED", "FFmpeg lỗi: " + " | ".join(list(stderr_tail)[-5:]))
+
+
+def read_pcm(path: str | Path, sr: int, start: float = 0.0, length: float = 0.0):
+    """Giải mã âm thanh của bất kỳ file audio / video nào thành mảng numpy mono float32 ở `sr` Hz.
+    `start` / `length` (giây) chỉ lấy một đoạn; 0 = từ đầu / đến hết."""
+    import numpy as np
+
+    cut = (["-ss", f"{start:.3f}"] if start > 0 else []) + (["-t", f"{length:.3f}"] if length > 0 else [])
+    proc = subprocess.run([_require("ffmpeg"), "-hide_banner", "-nostdin", "-loglevel", "error", *cut, "-i", str(path),
+                           "-vn", "-ac", "1", "-ar", str(sr), "-f", "f32le", "pipe:1"], capture_output=True)
+    if proc.returncode != 0:
+        raise ToolError("DECODE_FAILED", f"Không đọc được âm thanh: {proc.stderr.decode(errors='replace').strip()[-300:]}")
+    return np.frombuffer(proc.stdout, dtype=np.float32).copy()

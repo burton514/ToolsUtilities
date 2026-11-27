@@ -1,0 +1,40 @@
+[tool]
+id          = "compose_edit"
+name        = "Sửa bản dựng"
+version     = "0.1.1"
+sdk         = ">=0.1,<0.2"
+entry       = "tool:ComposeEditTool"
+summary     = "Sửa bản dựng (composition) bằng danh sách thao tác: thêm/xóa/sắp lớp, đổi chữ, màu, vị trí, thêm hiệu ứng, chuyển động; gắn mốc thời gian từ nhịp nhạc, câu thoại, cảnh."
+tags        = ["composition", "edit", "automation"]
+owners      = ["mediatool-core"]
+license     = "MIT"
+status      = "beta"
+# Nguồn hiện cạnh tên tool (repo model / thư viện / engine)
+sources     = [
+  { name = "MediaTool engine (Skia + FFmpeg)", url = "" },
+  { name = "rust-skia/rust-skia", url = "https://github.com/rust-skia/rust-skia" },
+]
+
+[runtime]
+profile     = "base"
+ram_mb      = 150
+gpu         = "none"
+heavy       = false
+timeout_s   = 60
+
+[dependencies]
+binaries    = ["mediatool-render"]
+
+[mcp]
+expose      = true
+hint        = "Input 'markers' nhận output của music_beat_track / speech_transcribe… để hiệu ứng, chuyển động chạy theo nhịp hoặc theo câu. Dùng để chỉnh một bản dựng có sẵn (output composition của compose_bind, compose_template…) trước khi xuất lại bằng compose_render. Tham số ops là danh sách thao tác JSON; target là id lớp, '*' hoặc 'type:<loại>'."
+
+[[examples]]
+title       = "Đổi chữ, phóng to và thêm hạt phim cho mọi lớp"
+inputs      = { composition = "samples/demo.json" }
+params      = { ops = [ { op = "set", path = "layers.title.text", value = "Chào mừng!" }, { op = "set", path = "layers.title.style.size", value = 140 }, { op = "add_effect", target = "*", effect = { type = "film_grain" } } ] }
+
+[[examples]]
+title       = "Gắn nhịp nhạc vào bản dựng (output của music_beat_track)"
+inputs      = { composition = "samples/demo.json", markers = "samples/beats.json" }
+params      = {}

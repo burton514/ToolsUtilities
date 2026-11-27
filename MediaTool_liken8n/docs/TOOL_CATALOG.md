@@ -32,13 +32,20 @@
 | Tool | Input → Output | Làm gì | Thay cho | Trạng thái |
 |---|---|---|---|---|
 | `compose_render` | `Composition` → video / ảnh tĩnh / chuỗi ảnh | Render bằng engine native (Skia + FFmpeg); chất lượng nháp/chuẩn/cao, nền trong suốt, xuất một đoạn | `compose_text_art`, `compose_render_frame`, `karaoke_compose`, `media_burn_subtitle`, render tiêu đề/thumbnail | **Đã có** (video MP4) |
-| `compose_template` | template (Composition có chỗ trống `{{...}}`) + giá trị → `Composition` | Điền mẫu dựng sẵn từ thư viện | `compose_create`, `compose_apply_template`, `title_card`, `video_from_images`, `thumbnail_maker` | Chưa làm |
-| `compose_edit` | `Composition` + danh sách thao tác → `Composition` | Thêm/xóa/sắp lớp, đặt thuộc tính theo đường dẫn, áp style/animation/effect từ thư viện, đặt `timing` | `compose_add_layer`, `compose_edit_layer`, `video_color_grade`, `video_effects`, `video_speed`, `video_reframe`, `image_adjust`, `image_lut` | Chưa làm |
-| `compose_bind` | `Composition` + `TimedData` + template cho từng mục → `Composition` | Mỗi mục dữ liệu có thời gian (dòng lời, từ, âm tiết, beat, cảnh) sinh lớp/chuyển động neo theo `data.start/end` | `compose_from_lyrics`, `karaoke_render_subtitle`, `subtitle_style`, `compose_beat_animate`, `video_beat_sync_edit` | Chưa làm |
+| `compose_template` | template (Composition có chỗ trống `{{...}}`) + giá trị → `Composition` | Điền mẫu dựng sẵn từ thư viện | `compose_create`, `compose_apply_template`, `title_card`, `video_from_images`, `thumbnail_maker` | **Đã có** (5 mẫu) |
+| `compose_edit` | `Composition` + danh sách thao tác → `Composition` | Thêm/xóa/sắp lớp, đặt thuộc tính theo đường dẫn, áp style/animation/effect từ thư viện, đặt `timing` | `compose_add_layer`, `compose_edit_layer`, `video_reframe` | **Đã có** |
+| `compose_bind` | video + SRT/VTT/LRC/`TimedData` → video + `Composition` | Mỗi câu một lớp chữ theo thời gian, 5 phong cách (phụ đề, TikTok, karaoke, lời bài hát, điện ảnh) | `compose_from_lyrics`, `karaoke_render_subtitle`, `subtitle_style` | **Đã có** |
+| `media_apply` | video/ảnh + hiệu ứng thư viện + chỉnh màu → video/ảnh | Áp gói hiệu ứng / bộ màu cho cả file (bản dựng một lớp + engine) | `video_color_grade`, `video_effects`, `image_adjust`, `image_lut` | **Đã có** |
 
 **Thư viện hiệu ứng (đã có, 47 gói):** bộ màu, phim, glitch, biến dạng, xóa phông xanh, chuyển cảnh… là gói dữ liệu SkSL trong `library/effects/` ([LIBRARY.md](LIBRARY.md)), áp cho mọi lớp hoặc qua lớp điều chỉnh — thay cho `video_color_grade`, `video_effects` và mọi tool "áp bộ lọc".
 
-API dùng chung đã có: `POST /v1/preview/frame` (render một khung + thời gian đã giải), `POST /v1/composition/prepare` (chuẩn hóa dạng cũ + giải mốc thời gian).
+**Chuỗi đã lưu là tool** (`entry = "chain:chain.json"`, xem TOOL_AUTHORING §3b): đã có `compose_film_subtitles` = `media_apply` → `compose_bind`, `compose_auto_captions` = `speech_transcribe` → `compose_bind` (phụ đề TikTok tự động), `compose_voiceover_captions` = `speech_synthesize` → `compose_bind` (thuyết minh kèm phụ đề), `compose_auto_dub` = `speech_transcribe` → `speech_dub` → `compose_bind` (đổi giọng video), `compose_karaoke` = `lyrics_align` → `compose_bind` (bài hát + lời → video karaoke), `compose_karaoke_video` = `audio_vocals_leap_xe` → `lyrics_align` → `compose_bind` (MV + lời → tách giọng → căn lời trên giọng → karaoke trên nhạc nền + hình gốc — **Luồng B**).
+
+**Tiến độ hai luồng đợt 1:** Luồng B (Karaoke) **chạy trọn** (`compose_karaoke_video`). Luồng A (Video nhạc mới) **tạm dừng**: **tách cảnh** (`video_scene_detect`) và **dựng cắt theo nhịp** (`video_beat_sync_edit`) đã bỏ khỏi kế hoạch (không thực tế); bắt nhịp, tách nhạc cụ, áp hiệu ứng / màu, chèn chữ, dựng và xuất đã có.
+
+**Tách nguồn âm — ba tool, chọn theo nhu cầu** (cùng tên output nên thay nhau được trong chuỗi): `audio_vocals_leap_xe` (BS-RoFormer Leap Xe — giọng + nhạc nền sạch nhất, chậm), `audio_stems6_sw` (BS-RoFormer SW — 6 phần chất lượng cao, chậm), `audio_stems6_htdemucs` (HTDemucs 6s — 6 phần, nhanh, RAM thấp, MIT). Hai model RoFormer không ghi giấy phép (chưa dùng thương mại); thay thế đã khai báo ở ENGINES.md. Bảng so sánh: README của từng tool.
+
+API dùng chung đã có: `POST /v1/composition/edit` (bảng thao tác chung), `POST /v1/preview/frame` (render một khung + thời gian đã giải), `POST /v1/composition/prepare` (chuẩn hóa dạng cũ + giải mốc thời gian).
 
 ### 0.2 Tool tính toán (thuật toán/model riêng) — output là kiểu dữ liệu chung
 
@@ -48,7 +55,7 @@ API dùng chung đã có: `POST /v1/preview/frame` (render một khung + thời 
 | `upscale` | Ảnh/video nét hơn | Real-ESRGAN nhẹ qua ONNX, `heavy = true` |
 | `track_motion` | `TimedData` vị trí → gắn cho mọi lớp bám theo | OpenCV CSRT |
 | `library_import` | Mục thư viện (font, style, preset, LUT, Lottie, sticker, template) | Mỗi loại tự khai báo cách kiểm tra (vd font phải đủ dấu tiếng Việt). Thay cho `font_install`, `lottie_import` |
-| `music_beat_track`, `video_scene_detect`, `music_vocal_activity`, `speech_transcribe`, `lyrics_align`, `audio_separate_stems`… | `TimedData` / file | Như danh sách ở mục 2 |
+| `music_beat_track`, `video_scene_detect`, `music_vocal_activity`, `speech_transcribe`, `lyrics_align`, `audio_vocals_leap_xe` / `audio_stems6_*`… | `TimedData` / file | Như danh sách ở mục 2 |
 
 **Kiểu dữ liệu có thời gian thống nhất — `TimedData`:** `{ items: [ { start, end, payload, children? } ] }` (dòng → từ → âm tiết). `Transcript`, `TimedLyrics`, `BeatGrid`, `SceneList`, `TimeRanges` đều là `TimedData` (có thể kèm metadata riêng), nên `compose_bind` chỉ viết một lần cho mọi loại. Beat/cảnh cũng nạp thẳng thành `markers` của Composition để neo thời gian.
 
@@ -60,7 +67,7 @@ API dùng chung đã có: `POST /v1/preview/frame` (render một khung + thời 
 ```
 video bài hát
   └─ video_demux ──┬─► video gốc (không tiếng) ─────────────────────────────┐
-                   └─► audio ─► audio_separate_stems (2 stems)               │
+                   └─► audio ─► audio_vocals_leap_xe (giọng + nhạc nền)       │
                                  ├─► instrumental ─► [audio_pitch_shift] ──┐ │
                                  └─► vocals ─┬─► music_vocal_activity      │ │
                                              │                             │ │
@@ -75,7 +82,7 @@ video bài hát
 ### Luồng A — Video nhạc mới
 ```
 video nguồn ─► video_demux ─► video_scene_detect ─► SceneList (các clip)
-nhạc ─► audio_separate_stems (4/6 stems) ─► stems
+nhạc ─► audio_stems6_sw / audio_stems6_htdemucs (6 phần) ─► stems
                  │
      xử lý nghệ thuật: audio_effects · audio_remix_preset · audio_time_stretch · audio_pitch_shift
                  ▼
@@ -121,7 +128,9 @@ nhạc ─► audio_separate_stems (4/6 stems) ─► stems
 
 | ID | Ưu tiên | Input → Output | Chức năng | Công nghệ | RAM |
 |---|---|---|---|---|---|
-| `audio_separate_stems` | P0 | audio → vocals, instrumental **hoặc** vocals, drums, bass, (piano, guitar), other | Tách 2/4/6 stems. Có chế độ `fast` cho máy yếu (segment nhỏ, 1 shift) | Demucs (htdemucs / htdemucs_6s) | 1.5–3 GB |
+| `audio_vocals_leap_xe` | P0 | audio / video → vocals, instrumental | Tách giọng + nhạc nền sạch nhất (karaoke) | BS-RoFormer Leap Xe | ~1.5 GB |
+| `audio_stems6_sw` | P0 | audio / video → vocals, instrumental, drums, bass, guitar, piano, other | 6 phần chất lượng cao | BS-RoFormer SW | ~2 GB |
+| `audio_stems6_htdemucs` | P0 | audio / video → như trên | 6 phần nhanh, máy yếu, dùng thương mại được | HTDemucs 6s (ONNX) | ~1.4 GB |
 | `audio_vocal_cleanup` | P1 | vocals → vocals | Khử vang (dereverb), khử echo, khử tiếng bè còn sót. Vocal sạch giúp căn lời chính xác hơn | Model MDX/UVR qua `audio-separator` | 1–2 GB |
 | `audio_denoise` | P1 | audio → audio | Khử ồn nền (ghi âm, live) | DeepFilterNet | < 1 GB |
 | `audio_normalize` | P0 | audio → audio | Chuẩn hóa độ to theo LUFS (ví dụ −14 cho YouTube/Spotify) | FFmpeg `loudnorm` (2 pass) | < 200 MB |
@@ -130,7 +139,7 @@ nhạc ─► audio_separate_stems (4/6 stems) ─► stems
 
 | ID | Ưu tiên | Input → Output | Chức năng | Công nghệ | RAM |
 |---|---|---|---|---|---|
-| `music_beat_track` | P0 | audio → `BeatGrid` | BPM, vị trí beat và downbeat (phách mạnh), số chỉ nhịp | Beat This! (model nhỏ, CPU), dự phòng librosa | < 1 GB |
+| `music_beat_track` | P0 | audio → `BeatGrid` | BPM, vị trí beat và downbeat (phách mạnh), số chỉ nhịp | Beat This! small (ONNX, CPU) — **Đã có** | < 600 MB |
 | `music_vocal_activity` | P0 | vocals → `TimeRanges` | Tìm các đoạn có giọng hát và đoạn nhạc dạo (để làm countdown karaoke và cắt đoạn trước khi căn lời) | Ngưỡng năng lượng trên stem vocals + Silero VAD | < 300 MB |
 | `music_key_detect` | P1 | audio → `JsonData` | Xác định tông (ví dụ "La thứ"). Dùng để gợi ý hạ hoặc nâng tông karaoke | librosa / Essentia | < 500 MB |
 | `music_sections` | P1 | audio → `TimeRanges` có nhãn | Chia đoạn intro / verse / chorus / bridge / outro | Self-similarity + beat (librosa) | < 1 GB |
@@ -140,9 +149,14 @@ nhạc ─► audio_separate_stems (4/6 stems) ─► stems
 
 | ID | Ưu tiên | Input → Output | Chức năng | Công nghệ | RAM |
 |---|---|---|---|---|---|
-| `speech_transcribe` | P0 | audio → `Transcript` | Phiên âm có **timestamp từng từ**. Mặc định tiếng Việt, tự nhận diện được ngôn ngữ khác. Dùng để tạo lời nháp khi người dùng không có lời | faster-whisper (CTranslate2, int8); model: PhoWhisper (bản chuyển sang CT2) hoặc Whisper `small`/`medium` | 1–2.5 GB |
+| `speech_synthesize` | P0 | văn bản (+ `voice`) → audio + `Transcript` | Đọc văn bản tiếng Việt bằng 25 giọng ba miền hoặc giọng riêng, kèm thời gian từng câu | VieNeu-TTS v3 Turbo / Nano (ONNX, CPU) — **Đã có** | 2–2,5 GB |
+| `speech_dub` | P0 | phụ đề / `Transcript` (+ video, `voice`) → audio + video + `Transcript` | Lồng tiếng đúng mốc: tự tăng tốc tối đa 1,3× cho vừa khung, tiếng gốc tự nhường giọng | VieNeu-TTS + Rubber Band + ffmpeg — **Đã có** | 2–2,5 GB |
+| `speech_voice_add` | P1 | clip giọng → `voice` | Nhân bản giọng từ clip 6–15 giây (bắt buộc xác nhận quyền dùng giọng), đọc thử + đo độ giống | VieNeu-TTS — **Đã có** | 2–2,5 GB |
+| `speech_zipformer_30m` | P0 | audio → `Transcript` | Chép lời **tiếng Việt** nhanh nhất trên CPU (model 32 MB, lỗi từ 8–11% VLSP) — repo hynt/Zipformer-30M-RNNT-6000h | sherpa-onnx, ZipFormer RNN-T int8 (**CC-BY-NC-ND**) — **Đã có** | < 1 GB |
+| `speech_zipformer_150m` | P0 | audio → `Transcript` | Chép lời **tiếng Việt** chính xác nhất (lỗi từ 6–8% VLSP) — repo hynt/ZipFormer-150M-CR-CTC-RNNT-6000h | sherpa-onnx, ZipFormer CR-CTC + RNN-T int8 (**CC-BY-NC-ND**) — **Đã có** | < 1,6 GB |
+| `speech_transcribe` | P0 | audio → `Transcript` | Phiên âm có **timestamp từng từ**. Mặc định **tiếng Việt** (PhoWhisper), tiếng Anh và ngoại ngữ khác dùng Whisper; model chọn theo bảng ngôn ngữ → model | faster-whisper (CTranslate2, int8); PhoWhisper-small / medium (VinAI, BSD-3), Whisper `base` / `small` — **Đã có** | 1–2 GB |
 | `lyrics_import` | P0 | text / LRC / SRT / `Transcript` → `TimedLyrics` (có thể chưa có thời gian) | Nhập lời từ nhiều nguồn và tách dòng. Bỏ các dòng ghi chú như "[Điệp khúc]", "ĐK:", "x2"; đánh dấu đoạn lặp | Python | < 100 MB |
-| `lyrics_align` | P0 | vocals + `TimedLyrics` → `TimedLyrics` (có thời gian từng dòng và **từng âm tiết**) | **Forced alignment**, trái tim của karaoke. Căn thời gian trên từng đoạn (dùng kết quả của `music_vocal_activity`) để chịu được bài dài và nhạc dạo dài | CTC forced alignment: wav2vec2 tiếng Việt hoặc MMS (torchaudio) | 1–2 GB |
+| `lyrics_align` | P0 | bài hát (audio/video) + lời (.txt / .lrc / .srt / `TimedData`) → `TimedLyrics` + .lrc (thời gian **từng chữ**) | **Forced alignment**, trái tim của karaoke: chữ viết → cách đọc (sea-g2p), wav2vec2 CTC chạy theo đoạn, căn Viterbi, cảnh báo dòng tin cậy thấp | ONNX Runtime; model `song` của nguyenvulebinh/lyric-alignment (CC-BY-NC) hoặc `general` XLSR-53 vi (Apache-2.0) — **Đã có** | < 2,2 GB |
 | `lyrics_snap_to_beat` | P1 | `TimedLyrics` + `BeatGrid` → `TimedLyrics` | Căn đầu câu (và tùy chọn từng chữ) theo beat gần nhất trong một ngưỡng cho phép. Giúp chữ chạy "đúng nhịp" hơn | Python | < 100 MB |
 | `lyrics_retime` | P1 | `TimedLyrics` → `TimedLyrics` | Dịch toàn bộ (offset), co giãn theo tempo mới (sau `audio_time_stretch`), sửa thời gian theo danh sách chỉnh tay | Python | < 100 MB |
 | `lyrics_export` | P0 | `TimedLyrics` / `Transcript` → LRC / Enhanced LRC / SRT / VTT / JSON | Xuất lời. SRT có quy tắc ngắt dòng cho tiếng Việt (tối đa số ký tự mỗi dòng, không ngắt giữa cụm từ) | Python | < 100 MB |
@@ -204,9 +218,9 @@ Các helper dùng chung này đặt trong **SDK** (`mediatool_sdk.vi`), không �
 
 | Kiểu | Nội dung |
 |---|---|
-| `Transcript` | `language`, `segments[]` → `words[]` gồm `text`, `start`, `end`, `confidence` |
+| `Transcript` | `language`, `items[]` (dòng) → `children[]` (từ) gồm `text`, `start`, `end` — TimedData chung, `mediatool_sdk.timed` đọc được |
 | `TimedLyrics` | `lines[]` gồm `text_display`, `text_spoken`, `start`, `end`, `singer?`, `syllables[]` (`text`, `start`, `end`); metadata bài hát (tên, ca sĩ) |
-| `BeatGrid` | `bpm`, `time_signature`, `beats[]`, `downbeats[]` |
+| `BeatGrid` | `bpm`, `meter`, `beats[]`, `downbeats[]`, `markers[]` (kind `beat`/`downbeat`, gộp thẳng vào Composition), `items[]` (TimedData) |
 | `SceneList` | `scenes[]` gồm `start`, `end`, `clip?` (VideoFile) |
 | `TimeRanges` | `ranges[]` gồm `start`, `end`, `label?` |
 | `FontFile`, `LutFile` | File font, file LUT `.cube` |
@@ -222,7 +236,7 @@ Cột `license` của từng model trong `manifest.toml` là bắt buộc, vì m
 | Thành phần | Ghi chú |
 |---|---|
 | Demucs, faster-whisper, Whisper | MIT, thoải mái |
-| PhoWhisper, các model wav2vec2 tiếng Việt, MMS | **Nhiều bản có license phi thương mại (CC-BY-NC)**. Phải kiểm tra từng model trước khi chọn làm mặc định |
+| Các model wav2vec2 tiếng Việt, MMS | **Nhiều bản có license phi thương mại (CC-BY-NC)**. Phải kiểm tra từng model trước khi chọn làm mặc định (PhoWhisper của VinAI: BSD-3, đã dùng) |
 | Model tách trong `audio-separator` (MDX/UVR) | License khác nhau theo từng model |
 | Rubber Band | GPL (có bản license thương mại trả phí) |
 | FFmpeg | LGPL; thành GPL khi build kèm libx264/librubberband |
@@ -234,14 +248,14 @@ Nếu sau này cần dùng thương mại hoàn toàn, mỗi tool nên có tùy 
 
 ## 6. Để sang đợt 2 (nặng hoặc cần GPU)
 
-Upscale video, nội suy khung hình, xóa nền video, đổi giọng (voice conversion / AI cover), TTS tiếng Việt, dịch lời song ngữ, chấm điểm karaoke, nhận diện người hát (song ca tự động), tạo ảnh/video bằng AI. Các tool này vẫn theo đúng hợp đồng tool hiện tại, chỉ khai báo `gpu = "required"` hoặc `heavy = true`.
+Upscale video, nội suy khung hình, xóa nền video, đổi giọng (voice conversion / AI cover), dịch lời song ngữ, chấm điểm karaoke, nhận diện người hát (song ca tự động), tạo ảnh/video bằng AI. Các tool này vẫn theo đúng hợp đồng tool hiện tại, chỉ khai báo `gpu = "required"` hoặc `heavy = true`.
 
 ---
 
 ## 7. Thứ tự làm gợi ý
 
 1. **Nền tảng** (người làm SDK làm cùng lúc): `media_probe`, `video_demux`, `media_mux`, `media_transcode`, `media_trim`, `audio_normalize`
-2. **Tách**: `audio_separate_stems`, `music_beat_track`, `music_vocal_activity`
+2. **Tách**: `audio_vocals_leap_xe`, `audio_stems6_sw`, `audio_stems6_htdemucs`, `music_beat_track`, `music_vocal_activity`
 3. **Lời**: `lyrics_import`, `speech_transcribe`, `lyrics_align`, `lyrics_export`
 4. **Karaoke chạy được trọn luồng**: `karaoke_render_subtitle`, `karaoke_compose`, `audio_pitch_shift`, `media_burn_subtitle`
 5. **Video nhạc chạy được trọn luồng**: `audio_mix`, `video_scene_detect`, `video_beat_sync_edit`

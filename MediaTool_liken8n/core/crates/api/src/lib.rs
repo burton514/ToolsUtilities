@@ -1,5 +1,6 @@
 //! HTTP API /v1. Mọi client (desktop, web, mobile, sandbox, MCP) chỉ đi qua đây.
 
+mod chains;
 mod preview;
 
 use axum::{
@@ -10,7 +11,7 @@ use axum::{
         sse::{Event, KeepAlive, Sse},
         IntoResponse, Response,
     },
-    routing::{get, post},
+    routing::{get, post, put},
     Json, Router,
 };
 use futures_util::stream::{self, BoxStream, StreamExt};
@@ -42,11 +43,25 @@ pub struct ServerConfig {
     pub config_dir: PathBuf,
     pub python: String,
     pub ram_budget_mb: u64,
+    /// "cpu" | "cuda" — thiết bị chạy model của tool hỗ trợ GPU (MEDIATOOL_DEVICE: cpu | cuda | auto = có GPU NVIDIA thì cuda)
+    pub device: String,
     pub token: Option<String>,
     /// Cho phép đăng ký file theo đường dẫn local (chế độ desktop).
     pub allow_local_paths: bool,
     /// Thư mục web tĩnh (ví dụ bản build của sandbox) phục vụ tại "/".
     pub static_dir: Option<PathBuf>,
+}
+
+/// `auto`: dùng CUDA khi thấy GPU NVIDIA (nvidia-smi trả lời), không thì CPU. Giá trị lạ → CPU (không bao giờ lỗi vì GPU).
+fn resolve_device(v: &str) -> String {
+    match v.trim().to_lowercase().as_str() {
+        "cuda" | "gpu" => "cuda".into(),
+        "auto" => {
+            let ok = std::process::Command::new("nvidia-smi").arg("-L").output().map(|o| o.status.success()).unwrap_or(false);
+            if ok { "cuda".into() } else { "cpu".into() }
+        }
+        _ => "cpu".into(),
+    }
 }
 
 impl ServerConfig {
@@ -61,6 +76,7 @@ impl ServerConfig {
             config_dir: env("MEDIATOOL_CONFIG", "config").into(),
             python: env("MEDIATOOL_PYTHON", if cfg!(windows) { "python" } else { "python3" }),
             ram_budget_mb: env("MEDIATOOL_RAM_BUDGET_MB", "5500").parse().unwrap_or(5500),
+            device: resolve_device(&env("MEDIATOOL_DEVICE", "cpu")),
             token: std::env::var("MEDIATOOL_TOKEN").ok().filter(|t| !t.is_empty()),
             allow_local_paths: env("MEDIATOOL_ALLOW_LOCAL_PATHS", "0") == "1",
             static_dir: std::env::var("MEDIATOOL_STATIC").ok().map(PathBuf::from),
@@ -108,6 +124,7 @@ pub async fn build_state(cfg: ServerConfig) -> anyhow::Result<AppState> {
         miniapps_root: cfg.miniapps_root.canonicalize().unwrap_or_else(|_| cfg.miniapps_root.clone()),
         python: cfg.python.clone(),
         disabled: cfg.disabled_tools(),
+        chains_root: Some(cfg.data_dir.join("chains")),
     };
     let rc = reg_cfg.clone();
     let registry = tokio::task::spawn_blocking(move || Registry::scan(&rc)).await?;
@@ -116,7 +133,7 @@ pub async fn build_state(cfg: ServerConfig) -> anyhow::Result<AppState> {
     let jobs = JobManager::new(
         store.clone(),
         registry.clone(),
-        JobsConfig { python: cfg.python.clone(), ram_budget_mb: cfg.ram_budget_mb, cancel_grace: Duration::from_secs(5) },
+        JobsConfig { python: cfg.python.clone(), ram_budget_mb: cfg.ram_budget_mb, cancel_grace: Duration::from_secs(5), device: cfg.device.clone() },
     );
     Ok(AppState { store, registry, jobs, cfg: Arc::new(cfg), reg_cfg: Arc::new(reg_cfg), preview: preview::PreviewService::start() })
 }
@@ -142,9 +159,15 @@ pub fn router(state: AppState) -> Router {
         .route("/jobs/:id/cancel", post(cancel_job))
         .route("/preview/frame", post(preview_frame))
         .route("/composition/prepare", post(composition_prepare))
+        .route("/composition/edit", post(composition_edit))
         .route("/system", get(system))
+        .route("/health/details", get(health_details))
         .route("/registry/reload", post(reload_registry))
         .route("/library/effects", get(library_effects))
+        .route("/chains", post(chains::create_chain))
+        .route("/chains/:id", get(chains::get_chain).put(chains::update_chain).delete(chains::delete_chain))
+        .route("/favorites", get(chains::list_favorites))
+        .route("/favorites/:id", put(chains::add_favorite).delete(chains::remove_favorite))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth));
 
     let static_dir = state.cfg.static_dir.clone();
@@ -227,7 +250,7 @@ async fn auth(State(s): State<AppState>, req: Request, next: Next) -> Response {
 
 // ------------------------------------------------------------------ tools
 
-fn tool_summary(e: &ToolEntry) -> Value {
+fn tool_summary(e: &ToolEntry, reg: &Registry) -> Value {
     let m = e.manifest.as_ref();
     let d = e.describe.as_ref();
     json!({
@@ -243,19 +266,33 @@ fn tool_summary(e: &ToolEntry) -> Value {
         "inputs": d.map(|d| &d.inputs),
         "outputs": d.map(|d| &d.outputs),
         "has_docs": e.has_docs,
+        "kind": e.kind,
         "example_count": m.map(|m| m.examples.len()).unwrap_or(0),
+        "sources": reg.sources_of(&e.id),
     })
 }
 
 async fn list_tools(State(s): State<AppState>) -> Json<Value> {
+    let favs = chains::favorites(&s);
     let reg = s.registry.read().unwrap();
-    Json(json!({"tools": reg.tools.values().map(tool_summary).collect::<Vec<_>>()}))
+    let tools: Vec<Value> = reg
+        .tools
+        .values()
+        .map(|e| {
+            let mut v = tool_summary(e, &reg);
+            // yêu thích (thứ tự đánh sao) + chuỗi của người dùng (sửa / xóa được)
+            v["favorite"] = json!(favs.iter().position(|f| f == &e.id));
+            v["editable"] = json!(reg.is_user_chain(&s.reg_cfg, &e.id));
+            v
+        })
+        .collect();
+    Json(json!({ "tools": tools }))
 }
 
 async fn get_tool(State(s): State<AppState>, AxPath(id): AxPath<String>) -> ApiResult<Json<Value>> {
     let reg = s.registry.read().unwrap();
     let e = reg.tool(&id).ok_or_else(|| ApiError::not_found(&format!("tool '{id}'")))?;
-    let mut v = tool_summary(e);
+    let mut v = tool_summary(e, &reg);
     v["manifest"] = serde_json::to_value(&e.manifest).unwrap_or(Value::Null);
     v["params_schema"] = e.describe.as_ref().map(|d| d.params_schema.clone()).unwrap_or(Value::Null);
     Ok(Json(v))
@@ -594,6 +631,15 @@ async fn composition_prepare(Json(v): Json<Value>) -> ApiResult<Json<Value>> {
     Ok(Json(serde_json::to_value(comp.prepare()).map_err(|e| anyhow::anyhow!(e))?))
 }
 
+/// Sửa bản dựng theo bảng thao tác chung (cùng engine mà tool `compose_edit` dùng): `{composition, ops: [...]}`.
+async fn composition_edit(Json(v): Json<Value>) -> ApiResult<Json<Value>> {
+    let ops = v.get("ops").and_then(Value::as_array).cloned().unwrap_or_default();
+    let comp = v.get("composition").cloned().unwrap_or(Value::Null);
+    let (edited, counts) = mediatool_engine::edit::apply(comp, &ops)
+        .map_err(|e| ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "BAD_EDIT", format!("{e:#}")))?;
+    Ok(Json(json!({ "composition": edited, "affected": counts })))
+}
+
 async fn preview_frame(State(s): State<AppState>, Json(b): Json<PreviewBody>) -> ApiResult<Json<Value>> {
     let mut comp: mediatool_engine::Composition = serde_json::from_value(b.composition)
         .map_err(|e| ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "BAD_COMPOSITION", e.to_string()))?;
@@ -625,6 +671,70 @@ async fn system(State(s): State<AppState>) -> Json<Value> {
         "miniapps": reg.miniapps.len(),
         "jobs": s.jobs.stats(),
         "local_paths": s.cfg.allow_local_paths,
+    }))
+}
+
+/// Sức khỏe chi tiết cho trang "Sức khỏe hệ thống": core + môi trường chạy tool (worker Python kiểm: thư viện, FFmpeg,
+/// ONNX Runtime / GPU, CPU / RAM / ổ đĩa) + từng tool (dùng được chưa, lý do, model đã tải chưa). Chỉ đọc, không tải gì.
+async fn health_details(State(s): State<AppState>) -> Json<Value> {
+    let python = s.cfg.python.clone();
+    let data = s.cfg.data_dir.clone();
+    let py = python.clone();
+    let t0 = std::time::Instant::now();
+    let run = tokio::task::spawn_blocking(move || {
+        std::process::Command::new(&py)
+            .args(["-m", "mediatool_worker", "health", "--data-dir"])
+            .arg(&data)
+            .env("PYTHONIOENCODING", "utf-8")
+            .output()
+    });
+    let env = match tokio::time::timeout(Duration::from_secs(60), run).await {
+        Err(_) => json!({"error": "Worker Python không trả lời sau 60 giây"}),
+        Ok(Err(e)) => json!({"error": e.to_string()}),
+        Ok(Ok(Err(e))) => json!({"error": format!("Không chạy được worker Python ({python}): {e}")}),
+        Ok(Ok(Ok(o))) if !o.status.success() => {
+            let err = String::from_utf8_lossy(&o.stderr);
+            let tail: Vec<&str> = err.lines().rev().take(3).collect();
+            json!({"error": format!("Worker Python lỗi: {}", tail.into_iter().rev().collect::<Vec<_>>().join(" | "))})
+        }
+        Ok(Ok(Ok(o))) => serde_json::from_slice::<Value>(&o.stdout).unwrap_or_else(|e| json!({"error": format!("Worker trả dữ liệu sai: {e}")})),
+    };
+    let worker_ms = t0.elapsed().as_millis() as u64;
+
+    let models_dir = s.store.models_dir();
+    let reg = s.registry.read().unwrap();
+    let tools: Vec<Value> = reg
+        .tools
+        .values()
+        .map(|t| {
+            let m = t.manifest.as_ref();
+            let models: Vec<Value> = m
+                .map(|m| {
+                    m.models
+                        .iter()
+                        .map(|ms| json!({"id": ms.id, "size_mb": ms.size_mb, "license": ms.license,
+                                         "ready": mediatool_jobs::models::is_ready(&models_dir, ms)}))
+                        .collect()
+                })
+                .unwrap_or_default();
+            json!({
+                "id": t.id, "name": m.map(|m| m.tool.name.clone()).unwrap_or_else(|| t.id.clone()),
+                "category": t.category, "kind": t.kind, "status": t.status,
+                "gpu": m.map(|m| m.runtime.gpu.clone()), "heavy": m.map(|m| m.runtime.heavy), "ram_mb": m.map(|m| m.runtime.ram_mb),
+                "models": models, "sources": reg.sources_of(&t.id),
+            })
+        })
+        .collect();
+    let miniapps: Vec<Value> = reg.miniapps.values().map(|a| json!({"name": a.name, "status": a.status})).collect();
+    Json(json!({
+        "core": {
+            "version": env!("CARGO_PKG_VERSION"), "protocol": mediatool_jobs::PROTOCOL, "jobs": s.jobs.stats(),
+            "python": s.cfg.python, "data_dir": s.cfg.data_dir, "local_paths": s.cfg.allow_local_paths, "device": s.cfg.device,
+        },
+        "environment": env,
+        "worker_ms": worker_ms,
+        "tools": tools,
+        "miniapps": miniapps,
     }))
 }
 

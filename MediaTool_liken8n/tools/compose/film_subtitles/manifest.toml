@@ -1,0 +1,28 @@
+# Chuỗi đã lưu: core đọc chain.json và chạy từng bước thành job con. Không có code riêng.
+[tool]
+id          = "compose_film_subtitles"
+name        = "Phụ đề phong cách phim"
+version     = "0.1.0"
+sdk         = ">=0.1,<0.2"
+entry       = "chain:chain.json"
+summary     = "Một bước ra video kiểu điện ảnh: áp tông màu phim cho video rồi chèn phụ đề / lời theo thời gian."
+tags        = ["chain", "subtitle", "film", "look"]
+owners      = ["mediatool-core"]
+license     = "MIT"
+status      = "beta"
+
+[runtime]
+profile     = "base"
+ram_mb      = 50
+gpu         = "none"
+heavy       = false
+timeout_s   = 7200
+
+[mcp]
+expose      = true
+hint        = "Dùng khi người dùng muốn video có màu kiểu phim và phụ đề đẹp trong một lần. Cần video + file phụ đề/lời có thời gian."
+
+[[examples]]
+title       = "Video mẫu + phụ đề, tông cam – xanh"
+inputs      = { video = "samples/sample_3s.mp4", subtitle = "samples/sample.srt" }
+params      = { look = "teal_orange", style = "cinema", quality = "draft" }

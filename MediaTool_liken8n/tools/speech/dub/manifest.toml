@@ -1,0 +1,43 @@
+# Model dùng chung (VieNeu-TTS v3 Turbo / Nano, Apache-2.0) khai báo một lần ở tools/_models/vieneu.toml.
+# Khóa cấp gốc: phải đứng TRƯỚC bảng [tool].
+models_from = ["vieneu"]
+
+[tool]
+id          = "speech_dub"
+name        = "Lồng tiếng theo phụ đề"
+version     = "0.1.0"
+sdk         = ">=0.1,<0.2"
+entry       = "tool:SpeechDubTool"
+summary     = "Đọc phụ đề tiếng Việt đúng mốc thời gian (câu dài tự đọc nhanh lên cho vừa) và trộn vào video, tiếng gốc tự nhỏ đi khi có lời. Dùng giọng có sẵn hoặc giọng riêng."
+tags        = ["speech", "tts", "dub", "voiceover", "subtitle"]
+owners      = ["mediatool-core"]
+license     = "MIT"
+status      = "beta"
+# Nguồn hiện cạnh tên tool (repo model / thư viện / engine)
+sources     = [
+  { name = "pnnbao97/VieNeu-TTS", url = "https://github.com/pnnbao97/VieNeu-TTS" },
+]
+
+[runtime]
+profile     = "base"
+ram_mb      = 2500
+gpu         = "none"
+heavy       = true
+timeout_s   = 10800
+
+[dependencies]
+binaries    = ["ffmpeg", "ffprobe"]
+
+[mcp]
+expose      = true
+hint        = "Dùng khi cần lồng tiếng / thuyết minh tiếng Việt theo phụ đề có sẵn, hoặc thay giọng nói của video. Nối sau speech_transcribe (input 'data'); output 'transcript' nối vào compose_bind để chèn phụ đề khớp giọng mới."
+
+[[examples]]
+title       = "Lồng tiếng video theo phụ đề tiếng Việt"
+inputs      = { video = "samples/talk.mp4", subtitle = "samples/dub_vi.srt" }
+params      = { voice = "Ngọc Huyền", seed = 5 }
+
+[[examples]]
+title       = "Chỉ xuất giọng lồng (không video), giữ tốc độ tự nhiên"
+inputs      = { subtitle = "samples/dub_vi.srt" }
+params      = { voice = "Quang Sơn", fit = "natural", seed = 5 }

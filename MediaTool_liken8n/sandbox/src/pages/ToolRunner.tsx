@@ -2,19 +2,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { marked } from "marked";
 import { ArrowLeft, FileCheck2, Music, Play, RotateCcw, Square, X } from "lucide-react";
-import type { Asset, Job, JsonSchema, MediaToolClient, ToolDetail } from "@mediatool/api-client";
+import type { Asset, Job, MediaToolClient, ToolDetail } from "@mediatool/api-client";
 import { Badge, Button, Dropzone, EmptyState, Notice, ProgressBar, Tabs } from "@mediatool/ui";
-import { defaultParams, ParamField, resolveSchema } from "@mediatool/workspace";
-import { ACCEPT, categoryOf, fileSize, FORMAT_LABEL } from "../meta";
+import { defaultParams, ParamField, resolveSchema, shortLabel } from "@mediatool/workspace";
+import { ACCEPT, categoryOf, fileSize, FORMAT_LABEL, SourceLine } from "../meta";
 import { ResultView } from "./ResultView";
-
-/** Mô tả tham số "Nhãn: giải thích" → tách thành nhãn ngắn + gợi ý. */
-function splitDescription(name: string, s: JsonSchema): JsonSchema {
-  const d = s.description ?? "";
-  const i = d.indexOf(":");
-  if (i > 0 && i < 60) return { ...s, title: d.slice(0, i), description: d.slice(i + 1).trim() };
-  return { ...s, title: d && d.length <= 60 ? d : s.title ?? name, description: d.length > 60 ? d : undefined };
-}
 
 export function ToolRunner({ client, toolId, onBack }: { client: MediaToolClient; toolId: string; onBack: () => void }) {
   const [tool, setTool] = useState<ToolDetail | null>(null);
@@ -37,7 +29,7 @@ export function ToolRunner({ client, toolId, onBack }: { client: MediaToolClient
   }, [client, toolId]);
 
   const schema = tool?.params_schema ?? {};
-  const paramList = useMemo(() => Object.entries(schema.properties ?? {}).map(([k, v]) => [k, splitDescription(k, resolveSchema(v, schema))] as const), [schema]);
+  const paramList = useMemo(() => Object.entries(schema.properties ?? {}).map(([k, v]) => [k, resolveSchema(v, schema)] as const), [schema]);
   const inputs = (tool?.inputs ?? []).filter((f) => f.format);
   const missing = inputs.filter((f) => f.required && !files[f.name]);
   const running = progress !== null;
@@ -111,7 +103,8 @@ export function ToolRunner({ client, toolId, onBack }: { client: MediaToolClient
         <div className="tr-icon">{cat.icon(26)}</div>
         <div>
           <h1 className="mt-h1">{tool.name}</h1>
-          <p className="mt-dim">{tool.summary}</p>
+          <SourceLine sources={tool.sources} max={4} className="big" />
+          <p className="mt-dim tr-sum" title={tool.summary}>{tool.summary}</p>
         </div>
       </div>
       <Tabs value={tab} onChange={setTab} tabs={[{ value: "use", label: "Sử dụng" }, { value: "docs", label: "Hướng dẫn chi tiết" }]} />
@@ -128,7 +121,7 @@ export function ToolRunner({ client, toolId, onBack }: { client: MediaToolClient
               <section key={f.name} className="tr-step">
                 <div className="tr-step-num">{i + 1}</div>
                 <div className="tr-step-body">
-                  <h3 className="mt-h3">{f.description || `Chọn ${FORMAT_LABEL[f.format!] ?? "file"}`}{!f.required && <span className="mt-faint"> (không bắt buộc)</span>}</h3>
+                  <h3 className="mt-h3" title={f.description ?? undefined}>{f.description ? shortLabel(f.name, { description: f.description }) : `Chọn ${FORMAT_LABEL[f.format!] ?? "file"}`}{!f.required && <span className="mt-faint"> (không bắt buộc)</span>}</h3>
                   {a ? (
                     <>
                     {a.format === "video" && <video className="tr-media" src={client.assetUrl(a.id)} poster={client.thumbnailUrl(a.id)} controls preload="metadata" />}
@@ -142,7 +135,7 @@ export function ToolRunner({ client, toolId, onBack }: { client: MediaToolClient
                     </>
                   ) : (
                     <Dropzone accept={ACCEPT[f.format!]} busy={uploading === f.name} onFile={(file) => upload(f.name, file)}
-                      label={`Kéo thả ${FORMAT_LABEL[f.format!] ?? "file"} vào đây, hoặc bấm để chọn`} hint="File chỉ được xử lý trên máy chủ MediaTool của bạn" />
+                      label={`Kéo thả ${FORMAT_LABEL[f.format!] ?? "file"} vào đây, hoặc bấm để chọn`} />
                   )}
                 </div>
               </section>
@@ -153,7 +146,7 @@ export function ToolRunner({ client, toolId, onBack }: { client: MediaToolClient
             <section className="tr-step">
               <div className="tr-step-num">{inputs.length + 1}</div>
               <div className="tr-step-body">
-                <h3 className="mt-h3">Tùy chỉnh <span className="mt-faint">(có thể để mặc định)</span></h3>
+                <h3 className="mt-h3">Tùy chỉnh</h3>
                 <div className="tr-params">
                   {paramList.map(([k, s]) => <ParamField key={k} name={k} schema={s} value={params[k]} onChange={(v) => setParams({ ...params, [k]: v })} />)}
                 </div>

@@ -7,8 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from ..assets import accepts
-from ..loader import load_tool_class, read_manifest
-from ..schema import describe
+from ..loader import chain_file, describe_dir, read_chain, read_manifest
 
 BLOCK_RE = re.compile(r"(<!-- AUTO:(?P<name>[a-z_]+):start -->)(?P<body>.*?)(<!-- AUTO:(?P=name):end -->)", re.S)
 
@@ -29,6 +28,9 @@ def _header(m: dict[str, Any]) -> str:
                         f"GPU: {r.get('gpu', 'none')} · heavy: {'yes' if r.get('heavy') else 'no'}"),
         ("**License code**", t.get("license", "chưa ghi")),
     ]
+    srcs = t.get("sources") or []
+    if srcs:
+        rows.insert(1, ("**Nguồn**", " · ".join(f"[{x['name']}]({x['url']})" if x.get("url") else x["name"] for x in srcs)))
     return "| | |\n|---|---|\n" + "\n".join(f"| {a} | {b} |" for a, b in rows)
 
 
@@ -49,7 +51,9 @@ def _io(d: dict[str, Any]) -> str:
         typ = p.get("type", "enum" if "enum" in p else "")
         valid = ""
         if "enum" in p:
-            valid = ", ".join(f"`{v}`" for v in p["enum"])
+            # nghĩa từng giá trị (x-labels của tool) đi kèm giá trị — tài liệu không chỉ liệt kê mã thô
+            labels = p.get("x-labels") or {}
+            valid = "<br>".join(f"`{v}` — {_cell(str(labels[v]))}" if v in labels else f"`{v}`" for v in p["enum"])
         elif "minimum" in p or "maximum" in p:
             valid = f"{p.get('minimum', '…')} – {p.get('maximum', '…')}"
         default = f"`{json.dumps(p['default'], ensure_ascii=False)}`" if "default" in p else "(bắt buộc)"
@@ -84,10 +88,17 @@ def _examples(m: dict[str, Any]) -> str:
     return "\n".join(out).strip() or "_Chưa có [[examples]] trong manifest._"
 
 
+def _model_src(md: dict[str, Any]) -> str:
+    url = md.get("url") or (md.get("files") or [{}])[0].get("url", "")
+    if md.get("files"):  # nhiều file: chỉ ghi thư mục gốc
+        url = url.rsplit("/", 1)[0] + f"/ ({len(md['files'])} file)"
+    return md.get("source") or url
+
+
 def _models(m: dict[str, Any]) -> str:
     rows = ["| Model | Kích thước | License | Nguồn |", "|---|---|---|---|"]
     for md in m.get("models", []):
-        rows.append(f"| `{md.get('id')}` | {md.get('size_mb', '?')} MB | {md.get('license', '**chưa ghi**')} | {md.get('url', '')} |")
+        rows.append(f"| `{md.get('id')}` | {md.get('size_mb', '?')} MB | {md.get('license', '**chưa ghi**')} | {_model_src(md)} |")
     if len(rows) == 2:
         rows.append("| _(không dùng model)_ | | | |")
     return "\n".join(rows)
@@ -104,7 +115,7 @@ def _chain(d: dict[str, Any], tool_dir: Path) -> str:
             continue
         try:
             om = read_manifest(odir)
-            od = describe(load_tool_class(odir, om), om)
+            od = describe_dir(odir, om)
         except Exception:
             continue
         o_out = {f["format"] for f in od["outputs"] if f["format"]}
@@ -122,14 +133,26 @@ def _chain(d: dict[str, Any], tool_dir: Path) -> str:
 def render_blocks(tool_dir: Path) -> dict[str, str]:
     tool_dir = Path(tool_dir).resolve()
     m = read_manifest(tool_dir)
-    d = describe(load_tool_class(tool_dir, m), m)
-    return {
+    d = describe_dir(tool_dir, m)
+    blocks = {
         "header": _header(m),
         "io": _io(d),
         "examples": _examples(m),
         "chain": _chain(d, tool_dir),
         "models": _models(m),
     }
+    if chain_file(m):
+        blocks["steps"] = _steps(read_chain(tool_dir, m))
+    return blocks
+
+
+def _steps(c: dict[str, Any]) -> str:
+    rows = ["| # | Bước | Tool | Nhận | Tham số cố định |", "|---|---|---|---|---|"]
+    for i, s in enumerate(c.get("steps", []), 1):
+        ins = ", ".join(f"`{k}` ← `{v if isinstance(v, str) else ', '.join(v)}`" for k, v in s.get("inputs", {}).items()) or "—"
+        ps = ", ".join(f"`{k}={json.dumps(v, ensure_ascii=False)}`" for k, v in s.get("params", {}).items()) or "—"
+        rows.append(f"| {i} | {s.get('title') or s['id']} | `{s['tool']}` | {ins} | {ps} |")
+    return "\n".join(rows)
 
 
 def update_readme(tool_dir: Path, check_only: bool = False) -> tuple[bool, list[str]]:

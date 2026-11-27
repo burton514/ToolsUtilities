@@ -9,6 +9,10 @@ tags        = ["split", "audio", "subtitle", "ffmpeg"]
 owners      = ["mediatool-core"]
 license     = "MIT"
 status      = "beta"
+# Nguồn hiện cạnh tên tool (repo model / thư viện / engine)
+sources     = [
+  { name = "FFmpeg/FFmpeg", url = "https://github.com/FFmpeg/FFmpeg" },
+]
 
 [runtime]
 profile     = "base"

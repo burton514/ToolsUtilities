@@ -10,6 +10,10 @@ tags        = []
 owners      = ["ten-github-cua-ban"]
 license     = "MIT"
 status      = "experimental"
+# Nguồn hiện cạnh tên tool: repo model / thư viện / engine mà tool dựa vào (bắt buộc với tool có code)
+sources     = [
+  { name = "chủ-repo/tên-repo", url = "https://github.com/chủ-repo/tên-repo" },
+]
 
 [runtime]
 profile     = "base"

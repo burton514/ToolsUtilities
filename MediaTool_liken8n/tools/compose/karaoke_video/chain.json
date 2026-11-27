@@ -1,0 +1,50 @@
+{
+  "inputs": [
+    { "name": "video", "format": "video", "description": "Video bài hát (MV) — giữ hình, bỏ giọng ca sĩ" },
+    { "name": "lyrics", "format": "text", "description": "Lời bài hát (.txt), mỗi dòng một câu hát, chép đủ các đoạn lặp" }
+  ],
+  "params": {
+    "type": "object",
+    "properties": {
+      "instrumental": { "$from": "audio_vocals_leap_xe.instrumental" },
+      "separation_quality": { "$from": "audio_vocals_leap_xe.quality" },
+      "engine": { "$from": "lyrics_align.engine" },
+      "offset_ms": { "$from": "lyrics_align.offset_ms", "default": -100 },
+      "style": { "$from": "compose_bind.style", "default": "karaoke" },
+      "position": { "$from": "compose_bind.position" },
+      "color": { "$from": "compose_bind.color" },
+      "highlight": { "$from": "compose_bind.highlight" },
+      "quality": { "$from": "compose_bind.quality" }
+    }
+  },
+  "steps": [
+    {
+      "id": "separate",
+      "title": "Tách giọng ca sĩ khỏi nhạc nền",
+      "tool": "audio_vocals_leap_xe",
+      "inputs": { "media": "$input.video" },
+      "params": { "instrumental": "$param.instrumental", "quality": "$param.separation_quality" }
+    },
+    {
+      "id": "align",
+      "title": "Căn lời theo giọng hát đã tách",
+      "tool": "lyrics_align",
+      "inputs": { "media": "$separate.vocals", "lyrics": "$input.lyrics" },
+      "params": { "engine": "$param.engine", "offset_ms": "$param.offset_ms" }
+    },
+    {
+      "id": "karaoke",
+      "title": "Chèn lời karaoke lên video, thay tiếng bằng nhạc nền",
+      "tool": "compose_bind",
+      "inputs": { "video": "$input.video", "audio": "$separate.instrumental", "data": "$align.lyrics" },
+      "params": { "style": "$param.style", "position": "$param.position", "color": "$param.color", "highlight": "$param.highlight", "quality": "$param.quality", "video_volume": 0 }
+    }
+  ],
+  "outputs": {
+    "video": { "from": "$karaoke.video", "format": "video", "description": "Video karaoke: hình gốc + nhạc nền không lời, chữ đổi màu đúng lúc hát từng chữ" },
+    "lrc": { "from": "$align.lrc", "format": "subtitle", "description": "Lời karaoke .lrc thời gian từng chữ" },
+    "instrumental": { "from": "$separate.instrumental", "format": "audio", "description": "Nhạc nền không lời (beat karaoke)" },
+    "vocals": { "from": "$separate.vocals", "format": "audio", "description": "Giọng ca sĩ đã tách" },
+    "composition": { "from": "$karaoke.composition", "format": "composition", "description": "Bản dựng — chỉnh kiểu chữ, hiệu ứng bằng compose_edit" }
+  }
+}

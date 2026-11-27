@@ -1,0 +1,20 @@
+# Chạy core bằng GPU NVIDIA (CUDA) — một lựa chọn duy nhất, bật thêm lên trên cấu hình thường:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+# Cần: driver NVIDIA hỗ trợ CUDA 12 (>= 525) và Docker có GPU (Docker Desktop + WSL2 trên Windows, nvidia-container-toolkit trên Linux).
+# Tool khai runtime.gpu = "optional" (tách giọng / tách nhạc cụ, chép lời Whisper) tự chạy CUDA; không nhận GPU thì tự về CPU.
+services:
+  core:
+    build:
+      args:
+        GPU: "1"
+    image: mediatool-core:gpu
+    environment:
+      # một lựa chọn cho cả máy: auto = thấy GPU NVIDIA thì tool hỗ trợ GPU chạy CUDA, không thì CPU
+      MEDIATOOL_DEVICE: auto
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

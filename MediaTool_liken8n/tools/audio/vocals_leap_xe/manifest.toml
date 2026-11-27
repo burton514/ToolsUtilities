@@ -1,0 +1,62 @@
+[tool]
+id          = "audio_vocals_leap_xe"
+name        = "Tách giọng & nhạc nền — BS-RoFormer Leap Xe (chính xác cao)"
+version     = "0.1.0"
+sdk         = ">=0.1,<0.2"
+entry       = "tool:VocalsLeapXeTool"
+summary     = "Tách bài hát (audio hoặc video) thành giọng hát + nhạc nền với độ sạch cao nhất. Model BS-RoFormer Leap Xe của pcunwa (repo pcunwa/BS-Roformer-Leap) — chuyên giọng hát, chạy chậm trên CPU. Trọng số không ghi giấy phép: chưa dùng thương mại."
+tags        = ["stems", "vocal", "karaoke", "instrumental", "separation", "roformer"]
+owners      = ["mediatool-core"]
+license     = "MIT"
+status      = "beta"
+# Nguồn hiện cạnh tên tool (repo model / thư viện / engine)
+sources     = [
+  { name = "pcunwa/BS-Roformer-Leap", url = "https://huggingface.co/pcunwa/BS-Roformer-Leap" },
+  { name = "ZFTurbo/Music-Source-Separation-Training", url = "https://github.com/ZFTurbo/Music-Source-Separation-Training" },
+]
+
+[runtime]
+profile     = "base"
+ram_mb      = 2200
+gpu         = "optional"
+heavy       = true
+timeout_s   = 14400
+
+[dependencies]
+binaries    = ["ffmpeg"]
+
+# BS-RoFormer Leap Xe (pcunwa) — checkpoint PyTorch gốc, đọc bằng mediatool_sdk.ckpt (không cần torch), ghim commit + sha256.
+# Repo KHÔNG ghi giấy phép → coi như chưa được dùng thương mại. Thay thế khi thương mại hóa: audio_stems6_htdemucs (MIT)
+# — cùng tên output vocals / instrumental nên thay thẳng trong chuỗi (xem docs/ENGINES.md).
+[[models]]
+id          = "leap_xe_vocals"
+url         = "https://huggingface.co/pcunwa/BS-Roformer-Leap/resolve/4e47d6662ae82eaa8b4ac4329fe66099a843b48e/Xe/bs_leap_xe_voc.ckpt"
+sha256      = "b739c1d2d87a81cd3dd3844ed9ad0bd678708c7a0a761a03a1aaff9af79a096d"
+file        = "bs_leap_xe_voc.ckpt"
+size_mb     = 268
+license     = "không ghi (unknown)"
+source      = "https://huggingface.co/pcunwa/BS-Roformer-Leap"
+
+# Model nhạc nền riêng của Leap Xe — chỉ tải khi chọn instrumental = model.
+[[models]]
+id          = "leap_xe_instrumental"
+url         = "https://huggingface.co/pcunwa/BS-Roformer-Leap/resolve/4e47d6662ae82eaa8b4ac4329fe66099a843b48e/Xe/bs_leap_xe_inst.ckpt"
+sha256      = "33ee9415f491d257fa7a79f6e92a80d647bc71ed622bfef9a137b6e4250307d3"
+file        = "bs_leap_xe_inst.ckpt"
+size_mb     = 268
+license     = "không ghi (unknown)"
+source      = "https://huggingface.co/pcunwa/BS-Roformer-Leap"
+
+[mcp]
+expose      = true
+hint        = "Tách giọng / nhạc nền SẠCH NHẤT (karaoke, giọng để căn lời) nhưng chậm: bài 4 phút ~22 phút trên CPU. Cần nhanh: audio_stems6_htdemucs. Cần cả trống / bass / guitar / piano: audio_stems6_sw. Output 'vocals' → lyrics_align; 'instrumental' → compose_bind (audio, video_volume = 0). Nhận thẳng video."
+
+[[examples]]
+title       = "Tách giọng hát và nhạc nền"
+inputs      = { media = "samples/song_11s.mp3" }
+params      = {}
+
+[[examples]]
+title       = "Từ MV: nhạc nền bằng model riêng, xuất FLAC"
+inputs      = { media = "samples/song_mv.mp4" }
+params      = { instrumental = "model", format = "flac" }

@@ -1,0 +1,49 @@
+[tool]
+id          = "music_beat_track"
+name        = "Bắt nhịp nhạc"
+version     = "0.1.1"
+sdk         = ">=0.1,<0.2"
+entry       = "tool:MusicBeatTrackTool"
+summary     = "Tìm nhịp, phách mạnh và BPM của bản nhạc. Kết quả là các mốc thời gian để cắt ghép, nháy hiệu ứng, chữ bật theo nhịp."
+tags        = ["music", "beat", "bpm", "rhythm", "sync"]
+owners      = ["mediatool-core"]
+license     = "MIT"
+status      = "beta"
+# Nguồn hiện cạnh tên tool (repo model / thư viện / engine)
+sources     = [
+  { name = "CPJKU/beat_this", url = "https://github.com/CPJKU/beat_this" },
+]
+
+[runtime]
+profile     = "base"
+ram_mb      = 600
+gpu         = "none"
+heavy       = false
+timeout_s   = 1800
+
+[dependencies]
+binaries    = ["ffmpeg"]
+
+# Beat This! (CPJKU, ISMIR 2024, MIT) bản "small", xuất ONNX; ghim theo commit, kiểm sha256.
+[[models]]
+id          = "beat_this_small"
+url         = "https://github.com/jub0t/Concat/raw/da0067a6a1ac174012dfd16af2ebefef0ec03b5a/src/crates/concat-speech/assets/beat-this/small0.onnx"
+sha256      = "399dd34ffbaeea053c13edd3bcd4e76fb41e11acd6704bffdd54010bc8a45fcc"
+file        = "beat_this_small.onnx"
+size_mb     = 10
+license     = "MIT"
+source      = "https://github.com/CPJKU/beat_this"
+
+[mcp]
+expose      = true
+hint        = "Dùng khi cần biết nhịp / BPM của nhạc để cắt video theo nhịp, nháy hiệu ứng hoặc cho chữ bật theo nhạc. Output 'beats' có markers (kind beat/downbeat) gộp thẳng vào bản dựng bằng compose_edit."
+
+[[examples]]
+title       = "Tìm nhịp bản nhạc mẫu 120 BPM"
+inputs      = { media = "samples/beat_120.mp3" }
+params      = {}
+
+[[examples]]
+title       = "Chỉ phân tích 4 giây, từ giây thứ 2"
+inputs      = { media = "samples/beat_120.mp3" }
+params      = { start = 2, duration = 4 }

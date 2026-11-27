@@ -249,6 +249,7 @@ pub fn guess_format(filename: &str) -> &'static str {
         "mp3" | "wav" | "m4a" | "aac" | "flac" | "ogg" | "opus" | "wma" | "aiff" => "audio",
         "jpg" | "jpeg" | "png" | "webp" | "gif" | "bmp" => "image",
         "srt" | "ass" | "ssa" | "vtt" | "lrc" => "subtitle",
+        "txt" | "md" => "text",
         "ttf" | "otf" | "woff" | "woff2" => "font",
         "cube" => "lut",
         "json" => "json",

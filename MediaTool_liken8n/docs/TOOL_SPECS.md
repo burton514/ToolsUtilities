@@ -135,6 +135,7 @@ Tự chọn khung hình rõ nét, không mờ, không rơi vào lúc chuyển c�
 ## 3. Tách và làm sạch âm thanh (`audio_*`)
 
 ### `audio_separate_stems` — Tách giọng hát / nhạc cụ
+> **Đã thay bằng ba tool** (người dùng chọn model): `audio_vocals_leap_xe` (giọng + nhạc nền, BS-RoFormer Leap Xe), `audio_stems6_sw` (6 phần chất lượng cao, BS-RoFormer SW), `audio_stems6_htdemucs` (6 phần nhẹ máy, HTDemucs 6s, MIT). Output dùng tên `instrumental` thay cho `accompaniment`. Đặc tả dưới đây là bản kế hoạch ban đầu.
 - **Input:** `audio` (audio)
 - **Output:** `stems = 2`: `vocals` (giọng hát), `accompaniment` (nhạc nền). `stems = 4`: `vocals`, `drums` (trống), `bass`, `other` (phần còn lại). `stems = 6`: thêm `piano`, `guitar`.
 

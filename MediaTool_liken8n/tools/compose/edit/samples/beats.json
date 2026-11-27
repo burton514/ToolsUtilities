@@ -1,0 +1,110 @@
+{
+ "bpm": 120.0,
+ "meter": 4,
+ "beats": [
+  0.0,
+  0.5,
+  1.0,
+  1.5,
+  2.0,
+  2.5,
+  3.0,
+  3.5
+ ],
+ "downbeats": [
+  0.0,
+  2.0
+ ],
+ "markers": [
+  {
+   "id": "beat1",
+   "start": 0.0,
+   "kind": "downbeat",
+   "label": "1"
+  },
+  {
+   "id": "beat2",
+   "start": 0.5,
+   "kind": "beat",
+   "label": "2"
+  },
+  {
+   "id": "beat3",
+   "start": 1.0,
+   "kind": "beat",
+   "label": "3"
+  },
+  {
+   "id": "beat4",
+   "start": 1.5,
+   "kind": "beat",
+   "label": "4"
+  },
+  {
+   "id": "beat5",
+   "start": 2.0,
+   "kind": "downbeat",
+   "label": "1"
+  },
+  {
+   "id": "beat6",
+   "start": 2.5,
+   "kind": "beat",
+   "label": "2"
+  },
+  {
+   "id": "beat7",
+   "start": 3.0,
+   "kind": "beat",
+   "label": "3"
+  },
+  {
+   "id": "beat8",
+   "start": 3.5,
+   "kind": "beat",
+   "label": "4"
+  }
+ ],
+ "items": [
+  {
+   "start": 0.0,
+   "end": 0.5,
+   "text": "1"
+  },
+  {
+   "start": 0.5,
+   "end": 1.0,
+   "text": "2"
+  },
+  {
+   "start": 1.0,
+   "end": 1.5,
+   "text": "3"
+  },
+  {
+   "start": 1.5,
+   "end": 2.0,
+   "text": "4"
+  },
+  {
+   "start": 2.0,
+   "end": 2.5,
+   "text": "1"
+  },
+  {
+   "start": 2.5,
+   "end": 3.0,
+   "text": "2"
+  },
+  {
+   "start": 3.0,
+   "end": 3.5,
+   "text": "3"
+  },
+  {
+   "start": 3.5,
+   "end": 4.0,
+   "text": "4"
+  }
+ ]
+}

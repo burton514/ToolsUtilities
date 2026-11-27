@@ -4,6 +4,7 @@
 | | |
 |---|---|
 | **ID** | `video_info` |
+| **Nguồn** | [FFmpeg/FFmpeg](https://github.com/FFmpeg/FFmpeg) |
 | **Category** | `video` |
 | **Phiên bản** | 0.1.0 · SDK `>=0.1,<0.2` |
 | **Trạng thái** | beta |
@@ -65,8 +66,8 @@ await ws.tools.run("video_info", { inputs: { /* asset */ }, params: {} });
 ## 4. Tích hợp và nối tool
 
 <!-- AUTO:chain:start -->
-- **Tool nối được vào trước (cấp input):** `compose_render`, `video_demux`
-- **Tool nối được ra sau (nhận output):** `compose_render`
+- **Tool nối được vào trước (cấp input):** `compose_auto_captions`, `compose_auto_dub`, `compose_bind`, `compose_film_subtitles`, `compose_karaoke`, `compose_karaoke_video`, `compose_render`, `compose_template`, `compose_voiceover_captions`, `media_apply`, `speech_dub`, `video_demux`
+- **Tool nối được ra sau (nhận output):** `compose_auto_dub`, `compose_bind`, `compose_edit`, `compose_render`, `compose_voiceover_captions`, `lyrics_align`, `speech_dub`, `speech_synthesize`
 <!-- AUTO:chain:end -->
 
 **Lưu ý khi tích hợp:**

@@ -1,0 +1,40 @@
+[tool]
+id          = "compose_template"
+name        = "Tạo từ mẫu dựng sẵn"
+version     = "0.1.0"
+sdk         = ">=0.1,<0.2"
+entry       = "tool:ComposeTemplateTool"
+summary     = "Tạo nhanh video/ảnh từ mẫu có sẵn: màn tiêu đề, dải tên, đếm ngược 3-2-1, trích dẫn, ảnh thumbnail. Chỉ cần điền chữ, chọn màu, thêm ảnh/video nền nếu muốn."
+tags        = ["template", "intro", "title", "lower third", "thumbnail", "countdown"]
+owners      = ["mediatool-core"]
+license     = "MIT"
+status      = "beta"
+# Nguồn hiện cạnh tên tool (repo model / thư viện / engine)
+sources     = [
+  { name = "MediaTool engine (Skia + FFmpeg)", url = "" },
+  { name = "rust-skia/rust-skia", url = "https://github.com/rust-skia/rust-skia" },
+]
+
+[runtime]
+profile     = "base"
+ram_mb      = 2400
+gpu         = "none"
+heavy       = true
+timeout_s   = 1800
+
+[dependencies]
+binaries    = ["mediatool-render", "ffprobe"]
+
+[mcp]
+expose      = true
+hint        = "Dùng khi cần màn mở đầu, dải tên nhân vật, đếm ngược, câu trích dẫn, hoặc ảnh thumbnail. Danh sách mẫu nằm trong enum của tham số template."
+
+[[examples]]
+title       = "Màn tiêu đề mở đầu"
+inputs      = {}
+params      = { template = "title_card", title = "Chuyện như chưa bắt đầu", subtitle = "Tập 1", quality = "draft" }
+
+[[examples]]
+title       = "Ảnh thumbnail từ ảnh nền"
+inputs      = { image = "samples/sample.jpg" }
+params      = { template = "thumbnail", title = "Xem ngay kẻo lỡ", subtitle = "MỚI", accent = "#FFD400" }

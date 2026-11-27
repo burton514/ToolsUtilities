@@ -1,0 +1,38 @@
+# Model dùng chung (VieNeu-TTS v3 Turbo / Nano, Apache-2.0) khai báo một lần ở tools/_models/vieneu.toml.
+# Khóa cấp gốc: phải đứng TRƯỚC bảng [tool].
+models_from = ["vieneu"]
+
+[tool]
+id          = "speech_voice_add"
+name        = "Lưu giọng đọc riêng"
+version     = "0.1.0"
+sdk         = ">=0.1,<0.2"
+entry       = "tool:SpeechVoiceAddTool"
+summary     = "Nhân bản một giọng từ clip mẫu 6–15 giây (tự chọn đoạn rõ nhất, tự khử nhiễu) thành hồ sơ giọng để đọc văn bản / lồng tiếng. Chỉ dùng giọng của bạn hoặc người đã đồng ý."
+tags        = ["speech", "tts", "voice", "clone"]
+owners      = ["mediatool-core"]
+license     = "MIT"
+status      = "beta"
+# Nguồn hiện cạnh tên tool (repo model / thư viện / engine)
+sources     = [
+  { name = "pnnbao97/VieNeu-TTS", url = "https://github.com/pnnbao97/VieNeu-TTS" },
+]
+
+[runtime]
+profile     = "base"
+ram_mb      = 2500
+gpu         = "none"
+heavy       = true
+timeout_s   = 1800
+
+[dependencies]
+binaries    = ["ffmpeg"]
+
+[mcp]
+expose      = true
+hint        = "Dùng khi người dùng muốn đọc / lồng tiếng bằng giọng của chính họ (có clip mẫu). Bắt buộc consent = true do người dùng xác nhận. Output 'voice' đưa vào input 'voice_file' của speech_synthesize / speech_dub."
+
+[[examples]]
+title       = "Lưu giọng từ clip mẫu (giọng tổng hợp, tự chọn đoạn)"
+inputs      = { audio = "samples/voice_sample.mp3" }
+params      = { name = "Giọng mẫu", consent = true }

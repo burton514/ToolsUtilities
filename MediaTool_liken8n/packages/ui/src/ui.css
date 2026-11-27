@@ -176,3 +176,11 @@
 .mt-tab:hover { color: var(--mt-text); }
 .mt-tab.on { color: var(--mt-text); border-bottom-color: var(--mt-accent); }
 .mt-tab:focus-visible { outline: 2px solid var(--mt-accent); outline-offset: -2px; }
+
+/* ô chọn màu: ô màu + mã #RRGGBB */
+.mt-color { display: flex; align-items: center; gap: 8px; }
+.mt-color input[type="color"] { width: 38px; height: 34px; padding: 2px; border-radius: var(--mt-radius-sm); border: 1px solid var(--mt-border);
+  background: var(--mt-surface-2); cursor: pointer; flex: none; }
+.mt-color input[type="color"]:focus-visible { outline: none; border-color: var(--mt-accent); box-shadow: 0 0 0 3px var(--mt-accent-soft); }
+.mt-color .mt-input { flex: 1; min-width: 0; font-family: var(--mt-mono); text-transform: uppercase; }
+.mt-color-clear { border: 0; background: transparent; color: var(--mt-accent-fg); font-size: 12px; cursor: pointer; white-space: nowrap; }

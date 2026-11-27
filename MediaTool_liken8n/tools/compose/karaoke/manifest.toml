@@ -1,0 +1,28 @@
+# Chuỗi đã lưu: core đọc chain.json và chạy từng bước thành job con. Không có code riêng.
+[tool]
+id          = "compose_karaoke"
+name        = "Làm video karaoke"
+version     = "0.1.0"
+sdk         = ">=0.1,<0.2"
+entry       = "chain:chain.json"
+summary     = "Một bước ra video karaoke: đưa bài hát + lời, tool tự căn thời gian từng chữ rồi dựng video chữ đổi màu đúng lúc hát (nền màu hoặc video của bạn), kèm file .lrc."
+tags        = ["chain", "karaoke", "lyrics", "song"]
+owners      = ["mediatool-core"]
+license     = "MIT"
+status      = "beta"
+
+[runtime]
+profile     = "base"
+ram_mb      = 50
+gpu         = "none"
+heavy       = false
+timeout_s   = 10800
+
+[mcp]
+expose      = true
+hint        = "Dùng khi người dùng có bài hát + lời và muốn video karaoke / lyric video. Lời phải đúng bài và đủ các đoạn lặp. Model căn mặc định chỉ cho dùng phi thương mại (engine = general nếu cần thương mại)."
+
+[[examples]]
+title       = "Bài hát mẫu + lời → video karaoke nền màu"
+inputs      = { song = "samples/vocal_mix.mp3", lyrics = "samples/lyrics.txt" }
+params      = { quality = "draft" }

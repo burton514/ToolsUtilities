@@ -4,6 +4,7 @@
 | | |
 |---|---|
 | **ID** | `video_demux` |
+| **Nguồn** | [FFmpeg/FFmpeg](https://github.com/FFmpeg/FFmpeg) |
 | **Category** | `video` |
 | **Phiên bản** | 0.1.0 · SDK `>=0.1,<0.2` |
 | **Trạng thái** | beta |
@@ -35,7 +36,7 @@ Tách một video thành **hình (không tiếng)**, **tiếng** và **các ph�
 ### Params
 | Tên | Kiểu | Mặc định | Giá trị hợp lệ | Mô tả |
 |---|---|---|---|---|
-| `audio_format` | string | `"wav"` | `wav`, `original`, `mp3` | Định dạng file tiếng tách ra: wav (dễ xử lý tiếp nhất), original (giữ nguyên, nhanh nhất), mp3 (nhẹ) |
+| `audio_format` | string | `"wav"` | `wav` — WAV — dễ xử lý tiếp nhất<br>`original` — Giữ nguyên — nhanh nhất<br>`mp3` — MP3 — nhẹ | Định dạng file tiếng tách ra |
 | `audio_track` | integer | `1` | 1 – 32 | Chọn track tiếng nếu video có nhiều track (1, 2, …) |
 | `extract_subtitles` | boolean | `true` |  | Lấy luôn phụ đề có sẵn trong file |
 
@@ -83,13 +84,13 @@ await ws.tools.run("video_demux", { inputs: { /* asset */ }, params: {"audio_for
 ## 4. Tích hợp và nối tool
 
 <!-- AUTO:chain:start -->
-- **Tool nối được vào trước (cấp input):** `compose_render`
-- **Tool nối được ra sau (nhận output):** `compose_render`, `media_probe`
+- **Tool nối được vào trước (cấp input):** `compose_auto_captions`, `compose_auto_dub`, `compose_bind`, `compose_film_subtitles`, `compose_karaoke`, `compose_karaoke_video`, `compose_render`, `compose_template`, `compose_voiceover_captions`, `media_apply`, `speech_dub`
+- **Tool nối được ra sau (nhận output):** `audio_stems6_htdemucs`, `audio_stems6_sw`, `audio_vocals_leap_xe`, `compose_auto_captions`, `compose_auto_dub`, `compose_bind`, `compose_edit`, `compose_film_subtitles`, `compose_karaoke`, `compose_karaoke_video`, `compose_render`, `compose_template`, `compose_voiceover_captions`, `lyrics_align`, `media_apply`, `media_probe`, `music_beat_track`, `speech_dub`, `speech_synthesize`, `speech_transcribe`, `speech_voice_add`, `speech_zipformer_150m`, `speech_zipformer_30m`, `video_info`
 <!-- AUTO:chain:end -->
 
 **Chuỗi hay dùng:**
 ```
-video_demux → audio_separate_stems → lyrics_align → karaoke_render_subtitle → karaoke_compose
+video_demux → audio_vocals_leap_xe → lyrics_align → compose_bind (chuỗi dựng sẵn: compose_karaoke_video — nhận thẳng MV, không cần video_demux)
 ```
 
 **Lưu ý khi tích hợp:**

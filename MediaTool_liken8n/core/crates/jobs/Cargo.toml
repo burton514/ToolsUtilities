@@ -12,3 +12,5 @@ tracing.workspace = true
 jsonschema.workspace = true
 mediatool-registry.workspace = true
 mediatool-storage.workspace = true
+ureq = "2"
+sha2 = "0.10"

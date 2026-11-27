@@ -1,0 +1,49 @@
+[tool]
+id          = "speech_zipformer_150m"
+name        = "Chép lời tiếng Việt — ZipFormer-150M (chính xác nhất)"
+version     = "0.1.0"
+sdk         = ">=0.1,<0.2"
+entry       = "tool:ZipFormer150MTool"
+summary     = "Chép lời nói TIẾNG VIỆT thành phụ đề với độ chính xác cao nhất (lỗi từ 6–8% trên bộ VLSP). Model ZipFormer-150M của hynt (repo hynt/ZipFormer-150M-CR-CTC-RNNT-6000h). Chậm hơn bản 30M khoảng 3 lần. Chỉ dùng phi thương mại."
+tags        = ["speech", "transcribe", "asr", "vietnamese", "zipformer", "accurate"]
+owners      = ["mediatool-core"]
+license     = "MIT"
+status      = "beta"
+# Nguồn hiện cạnh tên tool (repo model / thư viện / engine)
+sources     = [
+  { name = "hynt/ZipFormer-150M-CR-CTC-RNNT-6000h", url = "https://huggingface.co/hynt/ZipFormer-150M-CR-CTC-RNNT-6000h" },
+]
+
+[runtime]
+profile     = "base"
+ram_mb      = 1600
+gpu         = "none"
+heavy       = true
+timeout_s   = 7200
+
+[dependencies]
+binaries    = ["ffmpeg"]
+
+# Model của hynt (giải nhất VLSP 2025), ONNX int8 + bảng token (file config.json của repo chính là tokens.txt).
+# LICENSE CC-BY-NC-ND-4.0: CHỈ DÙNG PHI THƯƠNG MẠI, không phân phối bản sửa đổi (tool tải nguyên file gốc, không sửa).
+# Phương án thay thế khi thương mại hóa: speech_transcribe (PhoWhisper, BSD-3) — xem docs/ENGINES.md.
+[[models]]
+id          = "zipformer_150m_vi"
+size_mb     = 153
+license     = "CC-BY-NC-ND-4.0"
+source      = "https://huggingface.co/hynt/ZipFormer-150M-CR-CTC-RNNT-6000h"
+files = [
+  { path = "encoder.int8.onnx", url = "https://huggingface.co/hynt/ZipFormer-150M-CR-CTC-RNNT-6000h/resolve/8c3d474d3d74cb247f4b8c7b0f8b48598ac8c1c6/encoder-epoch-11-avg-2.int8.onnx", sha256 = "827db843495b35ba1153a92494f89e5e58ec31f5393b4f199b39b508f5a9d025" },
+  { path = "decoder.onnx"     , url = "https://huggingface.co/hynt/ZipFormer-150M-CR-CTC-RNNT-6000h/resolve/8c3d474d3d74cb247f4b8c7b0f8b48598ac8c1c6/decoder-epoch-11-avg-2.onnx", sha256 = "cb381da67f9443d78c7b62fed9ceab9871dbe26d8a1a9e3e10055d13f38d0161" },
+  { path = "joiner.int8.onnx" , url = "https://huggingface.co/hynt/ZipFormer-150M-CR-CTC-RNNT-6000h/resolve/8c3d474d3d74cb247f4b8c7b0f8b48598ac8c1c6/joiner-epoch-11-avg-2.int8.onnx", sha256 = "7d0417a93de825ab0002de19acb30500406bb7224074493387f616180b1807f0" },
+  { path = "tokens.txt"       , url = "https://huggingface.co/hynt/ZipFormer-150M-CR-CTC-RNNT-6000h/resolve/8c3d474d3d74cb247f4b8c7b0f8b48598ac8c1c6/config.json", sha256 = "ca8171f8bbd516c050b627582f2125c8f5f1f6ed967ab41b0fa9aae2cf61b492" },
+]
+
+[mcp]
+expose      = true
+hint        = "Chép lời tiếng Việt CHÍNH XÁC NHẤT (tin tức, phỏng vấn, bài giảng, giọng vùng miền). Nhanh / máy yếu: speech_zipformer_30m; cần dùng thương mại: speech_transcribe."
+
+[[examples]]
+title       = "Chép lời đoạn nói tiếng Việt"
+inputs      = { media = "samples/speech_vi.mp3" }
+params      = {}

@@ -39,6 +39,10 @@ pub struct Renderer {
     fonts: FontCollection,
     videos: HashMap<String, VideoSource>,
     images: HashMap<String, Image>,
+    /// bố cục chữ đã dựng (SkPicture) — dùng lại giữa các khung
+    text_cache: crate::text::TextCache,
+    /// surface dùng lại giữa các khung cùng kích thước (khỏi cấp phát 8 MB mỗi khung)
+    surface: Option<Surface>,
 }
 
 // Renderer chỉ được dùng trên một luồng (luồng render riêng của core / tiến trình CLI).
@@ -179,7 +183,7 @@ impl Renderer {
         crate::media::init();
         let mut fonts = FontCollection::new();
         fonts.set_default_font_manager(FontMgr::new(), Some("Noto Sans"));
-        Self { fonts, videos: HashMap::new(), images: HashMap::new() }
+        Self { fonts, videos: HashMap::new(), images: HashMap::new(), text_cache: Default::default(), surface: None }
     }
 
     /// Bỏ decoder/ảnh không còn dùng (gọi sau mỗi lần đổi composition để giải phóng RAM).
@@ -233,10 +237,15 @@ impl Renderer {
         let out_w = out_w.clamp(16, comp.canvas.width.max(16));
         let s = out_w as f32 / cw;
         let out_h = ((ch * s).round() as u32).max(2);
-        let mut surface = surfaces::raster_n32_premul((out_w as i32, out_h as i32)).ok_or_else(|| anyhow!("Không tạo được surface Skia"))?;
+        let mut surface = match self.surface.take() {
+            Some(s) if s.width() == out_w as i32 && s.height() == out_h as i32 => s,
+            _ => surfaces::raster_n32_premul((out_w as i32, out_h as i32)).ok_or_else(|| anyhow!("Không tạo được surface Skia"))?,
+        };
         let mut bounds = Vec::new();
         {
             let canvas = surface.canvas();
+            canvas.restore_to_count(1);
+            canvas.reset_matrix();
             canvas.clear(color(&comp.canvas.background));
             canvas.scale((s, s));
             for layer in &comp.layers {
@@ -265,6 +274,7 @@ impl Renderer {
                 }
             }
         }
+        self.surface = Some(surface.clone());
         Ok(Rendered { surface, width: out_w, height: out_h, bounds })
     }
 
@@ -292,9 +302,7 @@ impl Renderer {
                     need_h = need_h.max((ch * s * 0.25) as u32);
                 }
                 let (tw, th) = fit_within(v.width, v.height, need_w.clamp(16, 3840), need_h.clamp(16, 3840));
-                let f = v.frame_at(src_t, tw, th)?;
-                let info = ImageInfo::new((f.width as i32, f.height as i32), ColorType::RGBA8888, AlphaType::Unpremul, None);
-                Some(skia_safe::images::raster_from_data(&info, Data::new_copy(&f.data), f.stride).ok_or_else(|| anyhow!("Không tạo được ảnh từ khung"))?)
+                Some(v.frame_at(src_t, tw, th)?)
             }
             LayerKind::Image { source, .. } => {
                 self.ensure_image(source)?;
@@ -338,7 +346,7 @@ impl Renderer {
             canvas.restore();
         }
 
-        let tr = TextRenderer { fonts: &self.fonts, images: &self.images, cw, ch };
+        let tr = TextRenderer { fonts: &self.fonts, images: &self.images, cw, ch, cache: &self.text_cache };
         // kích thước nội dung (để clip wipe / mask / khung bao)
         let content = match (&l.kind, &src_rect) {
             (LayerKind::Video { .. } | LayerKind::Image { .. }, Some(sr)) => {
@@ -625,6 +633,16 @@ impl Rendered {
         #[allow(deprecated)]
         let data = img.encode_to_data_with_quality(EncodedImageFormat::JPEG, quality).ok_or_else(|| anyhow!("Không mã hóa được JPEG"))?;
         Ok(data.as_bytes().to_vec())
+    }
+
+    /// Điểm ảnh BGRA (định dạng gốc của surface Skia trên máy little-endian — đọc ra không phải đảo kênh).
+    pub fn bgra(&mut self, buf: &mut Vec<u8>) -> Result<()> {
+        let info = ImageInfo::new((self.width as i32, self.height as i32), ColorType::BGRA8888, AlphaType::Premul, None);
+        buf.resize((self.width * self.height * 4) as usize, 0);
+        if !self.surface.read_pixels(&info, buf.as_mut_slice(), (self.width * 4) as usize, (0, 0)) {
+            return Err(anyhow!("Không đọc được điểm ảnh từ surface"));
+        }
+        Ok(())
     }
 
     /// Điểm ảnh RGBA (đã ghép trên nền đục) để đưa vào FFmpeg.

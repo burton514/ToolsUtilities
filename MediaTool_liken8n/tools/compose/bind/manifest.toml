@@ -1,0 +1,40 @@
+[tool]
+id          = "compose_bind"
+name        = "Chèn chữ theo thời gian"
+version     = "0.1.1"
+sdk         = ">=0.1,<0.2"
+entry       = "tool:ComposeBindTool"
+summary     = "Chèn phụ đề / lời bài hát lên video theo đúng thời gian: phụ đề thường, kiểu TikTok, karaoke đổi màu, lời bài hát nghệ thuật. Nhận SRT, VTT, LRC hoặc dữ liệu phiên âm."
+tags        = ["subtitle", "lyrics", "karaoke", "tiktok", "caption", "text"]
+owners      = ["mediatool-core"]
+license     = "MIT"
+status      = "beta"
+# Nguồn hiện cạnh tên tool (repo model / thư viện / engine)
+sources     = [
+  { name = "MediaTool engine (Skia + FFmpeg)", url = "" },
+  { name = "rust-skia/rust-skia", url = "https://github.com/rust-skia/rust-skia" },
+]
+
+[runtime]
+profile     = "base"
+ram_mb      = 2400
+gpu         = "none"
+heavy       = true
+timeout_s   = 3600
+
+[dependencies]
+binaries    = ["mediatool-render", "ffprobe"]
+
+[mcp]
+expose      = true
+hint        = "Dùng khi cần đưa phụ đề hoặc lời bài hát (có thời gian) lên video, hoặc làm video lời bài hát/karaoke. Nối sau tool phiên âm/căn lời: output dạng JSON thời gian của chúng dùng được cho input 'data'."
+
+[[examples]]
+title       = "Phụ đề kiểu TikTok từ file SRT"
+inputs      = { video = "samples/sample_3s.mp4", subtitle = "samples/sample.srt" }
+params      = { style = "tiktok", quality = "draft" }
+
+[[examples]]
+title       = "Karaoke từ lời .lrc có thời gian từng từ, nền màu"
+inputs      = { subtitle = "samples/sample.lrc" }
+params      = { style = "karaoke", ratio = "16:9", quality = "draft" }

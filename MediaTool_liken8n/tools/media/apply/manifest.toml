@@ -1,0 +1,40 @@
+[tool]
+id          = "media_apply"
+name        = "Áp hiệu ứng cho video / ảnh"
+version     = "0.1.0"
+sdk         = ">=0.1,<0.2"
+entry       = "tool:MediaApplyTool"
+summary     = "Áp bộ màu điện ảnh, hạt phim, VHS, glitch, xóa phông xanh… cho video hoặc ảnh, kèm chỉnh sáng, tương phản, độ đậm màu."
+tags        = ["effect", "filter", "look", "color", "lut"]
+owners      = ["mediatool-core"]
+license     = "MIT"
+status      = "beta"
+# Nguồn hiện cạnh tên tool (repo model / thư viện / engine)
+sources     = [
+  { name = "MediaTool engine (Skia + FFmpeg)", url = "" },
+  { name = "rust-skia/rust-skia", url = "https://github.com/rust-skia/rust-skia" },
+]
+
+[runtime]
+profile     = "base"
+ram_mb      = 2400
+gpu         = "none"
+heavy       = true
+timeout_s   = 3600
+
+[dependencies]
+binaries    = ["mediatool-render", "ffprobe"]
+
+[mcp]
+expose      = true
+hint        = "Dùng khi người dùng muốn đổi màu, áp bộ lọc/hiệu ứng (phim cũ, VHS, glitch, cyberpunk, xóa phông xanh…) cho một video hoặc ảnh. Tên hiệu ứng lấy từ danh sách enum của tham số effect."
+
+[[examples]]
+title       = "Áp bộ màu cam – xanh điện ảnh cho video"
+inputs      = { video = "samples/sample_3s.mp4" }
+params      = { effect = "teal_orange", quality = "draft" }
+
+[[examples]]
+title       = "Biến ảnh thành tranh chấm in báo"
+inputs      = { image = "samples/sample.jpg" }
+params      = { effect = "halftone", strength = 100 }

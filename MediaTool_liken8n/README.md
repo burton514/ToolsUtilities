@@ -18,9 +18,37 @@ desktop/        Tauri 2 (khung, chưa build)
 docker/         image core: Rust + Python + FFmpeg
 ```
 
-## Chạy (Windows, mọi thứ cài trong thư mục project)
+## Chạy nhanh (pull về là chạy)
 
-Yêu cầu: Docker Desktop, Node.js 20+, Python 3.11+.
+Yêu cầu: **Docker** (Windows/macOS: Docker Desktop) và **Node.js 20+**. Không cần cài Python, Rust, FFmpeg hay model AI — tất cả nằm
+trong image Docker, model tự tải (kiểm sha256) lần đầu dùng tool cần nó.
+
+Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start.ps1
+```
+
+Linux / macOS:
+
+```sh
+./start.sh
+```
+
+Script dựng core (Docker), cài thư viện giao diện nếu chưa có, rồi mở sandbox tại http://localhost:5173. Lần đầu build image mất
+vài chục phút (biên dịch Rust); các lần sau vài giây.
+
+**GPU:** máy có GPU **NVIDIA** (driver hỗ trợ CUDA 12, Docker nhận GPU — Docker Desktop + WSL2 trên Windows, `nvidia-container-toolkit`
+trên Linux) thì script tự dựng core bản GPU; tool hỗ trợ GPU (tách giọng / tách nhạc cụ, chép lời Whisper) tự chạy CUDA, nhanh hơn
+nhiều lần. Trang **Sức khỏe hệ thống** trong sandbox cho biết core đang chạy GPU hay CPU. Không có GPU vẫn chạy bình thường bằng CPU (ép CPU: `start.ps1 -Cpu` / `./start.sh --cpu`). Bật GPU thủ công:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build core
+```
+
+## Chạy từng phần (Windows, mọi thứ cài trong thư mục project)
+
+Yêu cầu: Docker Desktop, Node.js 20+, Python 3.11+ (chỉ cho người viết tool).
 
 1. Core (Rust + FFmpeg + Python chạy trong Docker):
 
@@ -74,6 +102,7 @@ Sau đó xóa các thư mục `.toolchain/`, `node_modules/`, `sandbox/dist/`.
 | `MEDIATOOL_TOOLS`, `MEDIATOOL_MINIAPPS`, `MEDIATOOL_DATA`, `MEDIATOOL_CONFIG` | `tools`, `miniapps`, `data`, `config` | Thư mục |
 | `MEDIATOOL_PYTHON` | `python3` | Python có cài SDK + worker |
 | `MEDIATOOL_RAM_BUDGET_MB` | `5500` | Ngân sách RAM cho các job chạy cùng lúc |
+| `MEDIATOOL_DEVICE` | `cpu` | Thiết bị cho tool hỗ trợ GPU: `cpu`, `cuda`, `auto` (có GPU NVIDIA thì dùng) — bản GPU đặt `auto` |
 | `MEDIATOOL_TOKEN` | (trống) | Bật xác thực Bearer cho /v1 |
 | `MEDIATOOL_ALLOW_LOCAL_PATHS` | `0` | `1` = cho đăng ký file theo đường dẫn (desktop) |
 | `MEDIATOOL_STATIC` | (trống) | Thư mục web tĩnh phục vụ tại `/` |

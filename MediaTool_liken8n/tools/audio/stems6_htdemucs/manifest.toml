@@ -1,0 +1,50 @@
+[tool]
+id          = "audio_stems6_htdemucs"
+name        = "Tách 6 phần — nhẹ máy, nhanh (HTDemucs 6s)"
+version     = "0.1.0"
+sdk         = ">=0.1,<0.2"
+entry       = "tool:Stems6HTDemucsTool"
+summary     = "Tách bài hát (audio hoặc video) thành 6 phần: giọng, trống, bass, guitar, piano, nhạc cụ khác (+ nhạc nền ghép sẵn). Model HTDemucs 6s của Meta (facebookresearch/demucs, bản ONNX StemSplitio/htdemucs-6s-onnx) — nhanh, RAM thấp, dùng thương mại được (MIT)."
+tags        = ["stems", "vocal", "drums", "bass", "guitar", "piano", "instrumental", "separation", "demucs", "fast"]
+owners      = ["mediatool-core"]
+license     = "MIT"
+status      = "beta"
+# Nguồn hiện cạnh tên tool (repo model / thư viện / engine)
+sources     = [
+  { name = "facebookresearch/demucs", url = "https://github.com/facebookresearch/demucs" },
+  { name = "StemSplitio/htdemucs-6s-onnx", url = "https://huggingface.co/StemSplitio/htdemucs-6s-onnx" },
+]
+
+[runtime]
+profile     = "base"
+ram_mb      = 1500
+gpu         = "optional"
+heavy       = true
+timeout_s   = 7200
+
+[dependencies]
+binaries    = ["ffmpeg"]
+
+# HT-Demucs v4 bản 6 nguồn (Meta, MIT) xuất ONNX một file, trọng số lưu fp16 (chạy fp32). Ghim commit, kiểm sha256.
+[[models]]
+id          = "htdemucs_6s"
+url         = "https://huggingface.co/StemSplitio/htdemucs-6s-onnx/resolve/49df9b6989cf2150840ea65b0bef77a2e471b678/htdemucs_6s_fp16weights.onnx"
+sha256      = "7ce55792e2231c93fbf92de95f5fd5b3a5e6c89f7db690dfd693e8f1dce56869"
+file        = "htdemucs_6s_fp16weights.onnx"
+size_mb     = 136
+license     = "MIT"
+source      = "https://github.com/facebookresearch/demucs"
+
+[mcp]
+expose      = true
+hint        = "Tách 6 phần NHANH, RAM thấp, dùng thương mại được (giọng, trống, bass, guitar, piano, khác + nhạc nền): bài 4 phút ~3 phút trên CPU. Cần sạch hơn: audio_stems6_sw (6 phần) hoặc audio_vocals_leap_xe (giọng + nhạc nền). Output 'vocals' → lyrics_align; 'instrumental' → compose_bind. Nhận thẳng video."
+
+[[examples]]
+title       = "Tách 6 phần một bài hát"
+inputs      = { media = "samples/song_11s.mp3" }
+params      = {}
+
+[[examples]]
+title       = "Tách 6 phần từ MV, chồng 50%, xuất FLAC"
+inputs      = { media = "samples/song_mv.mp4" }
+params      = { quality = "best", format = "flac" }

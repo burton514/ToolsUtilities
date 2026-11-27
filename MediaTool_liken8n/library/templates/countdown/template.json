@@ -1,0 +1,231 @@
+{
+  "id": "countdown",
+  "name": "Đếm ngược 3-2-1",
+  "description": "Số 3, 2, 1 đập theo từng giây trên vòng tròn màu, rồi hiện chữ bắt đầu.",
+  "output": "video",
+  "duration": 4,
+  "slots": {
+    "title": {
+      "label": "Chữ sau khi đếm",
+      "default": "BẮT ĐẦU!"
+    },
+    "image": {
+      "label": "Ảnh nền",
+      "kind": "image"
+    },
+    "video": {
+      "label": "Video nền",
+      "kind": "video"
+    },
+    "accent": {
+      "label": "Màu nhấn",
+      "default": "#FFC83D"
+    }
+  },
+  "composition": {
+    "version": 1,
+    "canvas": {
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "background": "#101018"
+    },
+    "duration": 4,
+    "layers": [
+      {
+        "id": "bg",
+        "name": "bg",
+        "type": "shape",
+        "shape": "rect",
+        "x": 0.5,
+        "y": 0.5,
+        "w": 1,
+        "h": 1,
+        "fill": {
+          "type": "radial",
+          "stops": [
+            "#1E1B4B",
+            "#05050A"
+          ],
+          "cx": 0.5,
+          "cy": 0.5,
+          "r": 0.75
+        },
+        "corner_radius": 0,
+        "start": 0,
+        "duration": 4
+      },
+      {
+        "id": "bg_image",
+        "name": "Nền",
+        "type": "image",
+        "source": "{{image}}",
+        "fit": "cover",
+        "start": 0,
+        "duration": 4,
+        "_requires": "image",
+        "effects": [
+          {
+            "type": "dim",
+            "amount": 35
+          }
+        ]
+      },
+      {
+        "id": "ring",
+        "name": "ring",
+        "type": "shape",
+        "shape": "circle",
+        "x": 0.5,
+        "y": 0.5,
+        "w": 0.3,
+        "h": 0.533,
+        "fill": "#00000000",
+        "corner_radius": 0,
+        "start": 0,
+        "duration": 3,
+        "strokes": [
+          {
+            "color": "{{accent}}",
+            "width": 10
+          }
+        ],
+        "animations": [
+          {
+            "preset": "pulse",
+            "kind": "loop",
+            "period": 1.0
+          }
+        ]
+      },
+      {
+        "id": "n3",
+        "name": "n3",
+        "type": "text",
+        "text": "3",
+        "x": 0.5,
+        "y": 0.5,
+        "start": 0,
+        "duration": 1,
+        "style": {
+          "font": "Noto Sans",
+          "weight": 900,
+          "size": 300,
+          "fill": "#FFFFFF",
+          "align": "center",
+          "max_width": 0.86
+        },
+        "animations": [
+          {
+            "preset": "punch",
+            "kind": "emphasis",
+            "duration": 0.5
+          },
+          {
+            "preset": "fade",
+            "kind": "out",
+            "duration": 0.2
+          }
+        ]
+      },
+      {
+        "id": "n2",
+        "name": "n2",
+        "type": "text",
+        "text": "2",
+        "x": 0.5,
+        "y": 0.5,
+        "start": 1,
+        "duration": 1,
+        "style": {
+          "font": "Noto Sans",
+          "weight": 900,
+          "size": 300,
+          "fill": "#FFFFFF",
+          "align": "center",
+          "max_width": 0.86
+        },
+        "animations": [
+          {
+            "preset": "punch",
+            "kind": "emphasis",
+            "duration": 0.5
+          },
+          {
+            "preset": "fade",
+            "kind": "out",
+            "duration": 0.2
+          }
+        ]
+      },
+      {
+        "id": "n1",
+        "name": "n1",
+        "type": "text",
+        "text": "1",
+        "x": 0.5,
+        "y": 0.5,
+        "start": 2,
+        "duration": 1,
+        "style": {
+          "font": "Noto Sans",
+          "weight": 900,
+          "size": 300,
+          "fill": "#FFFFFF",
+          "align": "center",
+          "max_width": 0.86
+        },
+        "animations": [
+          {
+            "preset": "punch",
+            "kind": "emphasis",
+            "duration": 0.5
+          },
+          {
+            "preset": "fade",
+            "kind": "out",
+            "duration": 0.2
+          }
+        ]
+      },
+      {
+        "id": "title",
+        "name": "title",
+        "type": "text",
+        "text": "{{title}}",
+        "x": 0.5,
+        "y": 0.5,
+        "start": 3,
+        "duration": 1,
+        "style": {
+          "font": "Noto Sans",
+          "weight": 900,
+          "size": 160,
+          "fill": "#FFFFFF",
+          "align": "center",
+          "max_width": 0.86
+        },
+        "strokes": [
+          {
+            "color": "#000000",
+            "width": 6
+          }
+        ],
+        "shadows": [
+          {
+            "kind": "glow",
+            "color": "{{accent}}",
+            "blur": 30
+          }
+        ],
+        "animations": [
+          {
+            "preset": "zoom_out",
+            "kind": "in",
+            "duration": 0.4
+          }
+        ]
+      }
+    ]
+  }
+}

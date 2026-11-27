@@ -19,7 +19,7 @@ class Inputs(BaseModel):
 
 class Params(BaseModel):
     audio_format: Literal["wav", "original", "mp3"] = Field(
-        "wav", description="Định dạng file tiếng tách ra: wav (dễ xử lý tiếp nhất), original (giữ nguyên, nhanh nhất), mp3 (nhẹ)")
+        "wav", description="Định dạng file tiếng tách ra", json_schema_extra={"x-labels": {"wav": "WAV — dễ xử lý tiếp nhất", "original": "Giữ nguyên — nhanh nhất", "mp3": "MP3 — nhẹ"}})
     audio_track: int = Field(1, ge=1, le=32, description="Chọn track tiếng nếu video có nhiều track (1, 2, …)")
     extract_subtitles: bool = Field(True, description="Lấy luôn phụ đề có sẵn trong file")
 
